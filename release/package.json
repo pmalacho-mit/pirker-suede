@@ -1,0 +1,29 @@
+{
+  "name": "release",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^24.12.0",
+    "svelte": "^5.53.12",
+    "svelte-check": "^4.4.5",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@hono/typebox-validator": "^1.1.0",
+    "@mariozechner/pi-ai": "^0.60.0",
+    "diff": "^8.0.3",
+    "extract-zip": "^2.0.1",
+    "hono": "^4.12.8"
+  }
+}
