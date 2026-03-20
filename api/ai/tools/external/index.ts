@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { spawnSync } from "child_process";
+import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   createWriteStream,
@@ -8,12 +8,12 @@ import {
   readdirSync,
   renameSync,
   rmSync,
-} from "fs";
-import { arch, platform } from "os";
-import { dirname, join } from "path";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
-import { fileURLToPath } from "url";
+} from "node:fs";
+import { arch, platform } from "node:os";
+import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { fileURLToPath } from "node:url";
 
 const TOOLS_DIR = dirname(fileURLToPath(import.meta.url));
 const NETWORK_TIMEOUT_MS = 10_000;

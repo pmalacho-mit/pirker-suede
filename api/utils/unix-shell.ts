@@ -1,5 +1,5 @@
 import { delimiter } from "node:path";
-import { spawnSync } from "child_process";
+import { spawnSync } from "node:child_process";
 
 /**
  * Find bash executable on PATH

@@ -21,6 +21,9 @@ if ! command -v npm >/dev/null 2>&1; then
 	exit 1
 fi
 
+echo "[install] npm install"
+npm install
+
 if command -v tsx >/dev/null 2>&1; then
 	TSX_CMD=(tsx)
 elif command -v npx >/dev/null 2>&1; then
@@ -35,6 +38,9 @@ API_CMD=("${TSX_CMD[@]}" watch "$API_ENTRY")
 
 echo "[install] ensuring external tools"
 "${TSX_CMD[@]}" "$INSTALL_SCRIPT"
+
+echo "[codegen] generating model schemas"
+npm run codegen
 
 PIDS=()
 
