@@ -21,58 +21,24 @@ import * as fs from "fs";
 import * as Codegen from "@sinclair/typebox-codegen";
 import { Project, ts, Type, Node, SyntaxKind, CallExpression } from "ts-morph";
 import { escape } from "../api/utils/regex";
-
-function arg(flag: string): string {
-  const idx = process.argv.indexOf(flag);
-  if (idx === -1 || !process.argv[idx + 1]) {
-    console.error(`Missing required argument: ${flag}`);
-    process.exit(1);
-  }
-  return process.argv[idx + 1];
-}
-
-function args(flag: string): string[] {
-  const values: string[] = [];
-  for (let i = 0; i < process.argv.length; i++) {
-    if (process.argv[i] === flag) {
-      const next = process.argv[i + 1];
-      if (!next || next.startsWith("--")) {
-        console.error(`Missing required argument value for: ${flag}`);
-        process.exit(1);
-      }
-      values.push(
-        ...next
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-      );
-    }
-  }
-
-  if (values.length === 0) {
-    console.error(`Missing required argument: ${flag}`);
-    process.exit(1);
-  }
-
-  return values;
-}
+import { arg, args } from "./utils";
 
 const inputFile = arg("--input");
-const typeNames = args("--type");
 const outputFile = arg("--output");
+const typeNames = args("--type");
 
-function nestingDepth(call: CallExpression): number {
-  let d = 0;
+function typeNestingDepth(call: CallExpression): number {
+  let depth = 0;
   let node = call.getParent();
   while (node) {
     if (
       node.getKind() === SyntaxKind.CallExpression &&
-      (node as CallExpression).getExpression().getText() === "Type.Object"
+      (node as CallExpression).getExpression().getText().startsWith("Type.")
     )
-      d++;
+      depth++;
     node = node.getParent();
   }
-  return d;
+  return depth;
 }
 
 const extractPropertyAssignment = (node?: Node<ts.Node>) => {
@@ -99,22 +65,14 @@ type DedupSpecMeta = {
 type DedupSpec = {
   expression: string;
   replacementPrefix: string;
-  minDepth?: number;
-  shouldInclude?: (location: Location, selected: ReplacementEntry[]) => boolean;
+  depth?: number;
   getMeta?: (call: CallExpression) => DedupSpecMeta | undefined;
   buildComment?: (text: string, meta: DedupSpecMeta) => string | undefined;
 };
 
-function isInsideAnyRange(location: Location, ranges: Location[]) {
-  return ranges.some(
-    (range) => location.start >= range.start && location.end <= range.end,
-  );
-}
-
 function collectEntries(
   source: ReturnType<Project["createSourceFile"]>,
   spec: DedupSpec,
-  selected: ReplacementEntry[],
 ): ReplacementEntry[] {
   type Group = { locations: Location[]; meta?: DedupSpecMeta };
   const groups = new Map<string, Group>();
@@ -122,13 +80,13 @@ function collectEntries(
   const calls = source
     .getDescendantsOfKind(SyntaxKind.CallExpression)
     .filter((call) => call.getExpression().getText() === spec.expression)
-    .filter((call) =>
-      spec.minDepth !== undefined ? nestingDepth(call) === spec.minDepth : true,
+    .filter(
+      (call) =>
+        spec.depth === undefined || typeNestingDepth(call) === spec.depth,
     );
 
   for (const call of calls) {
     const location = { start: call.getStart(), end: call.getEnd() };
-    if (spec.shouldInclude && !spec.shouldInclude(location, selected)) continue;
 
     const text = call.getText();
     if (!groups.has(text)) {
@@ -164,7 +122,7 @@ function deduplicate(content: string) {
     {
       expression: "Type.Object",
       replacementPrefix: "_obj",
-      minDepth: 2,
+      depth: 2,
       getMeta: (call) => {
         const modelName = extractPropertyAssignment(call.getParent());
         return modelName ? { names: new Set([modelName]) } : undefined;
@@ -179,31 +137,20 @@ function deduplicate(content: string) {
     {
       expression: "Type.Literal",
       replacementPrefix: "_lit",
-      shouldInclude: (location, selected) => {
-        const objectRanges = selected
-          .filter(
-            (entry) =>
-              entry.replacement.to.startsWith("_") &&
-              !entry.replacement.to.startsWith("_lit_"),
-          )
-          .flatMap((entry) => entry.locations);
-        return !isInsideAnyRange(location, objectRanges);
-      },
+      depth: 2,
     },
   ];
 
-  const selectedEntries: ReplacementEntry[] = [];
-  for (const spec of specs) {
-    selectedEntries.push(...collectEntries(source, spec, selectedEntries));
-  }
+  const entries: ReplacementEntry[] = [];
+  for (const spec of specs) entries.push(...collectEntries(source, spec));
 
-  if (selectedEntries.length === 0) {
+  if (entries.length === 0) {
     const [, ...lines] = content.split("\n");
     return lines.join("\n");
   }
 
   // Ignore the first line (assumed to be the import line)
-  const [_, ...lines] = selectedEntries
+  const [_, ...lines] = entries
     .flatMap(({ locations, replacement }) => {
       return locations.map((location) => ({ location, replacement }));
     })
@@ -214,7 +161,7 @@ function deduplicate(content: string) {
     .split("\n");
 
   let index = 0;
-  for (const { replacement, comment } of selectedEntries) {
+  for (const { replacement, comment } of entries) {
     const declaration = `const ${replacement.to} = ${replacement.from};`;
     lines.splice(
       index,
@@ -230,17 +177,12 @@ function deduplicate(content: string) {
 function resolveAliasText(type: Type, contextNode: Node): string {
   // Follow the alias symbol to its actual declaration
   const symbol = type.getAliasSymbol() ?? type.getSymbol();
-  const decl = symbol
+  const declaration = symbol
     ?.getDeclarations()
     .find((d) => d.getKind() === ts.SyntaxKind.TypeAliasDeclaration);
-
-  if (decl) {
-    // decl is the `type AnthropicEffort = "default" | "turbo"` node
-    return decl.getType().getText(decl);
-  }
-
-  // Fallback: return whatever getText gives
-  return type.getText(contextNode);
+  return (
+    declaration?.getType().getText(declaration) ?? type.getText(contextNode)
+  );
 }
 
 function findTsConfig(fromFile: string): string | undefined {
