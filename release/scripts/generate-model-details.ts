@@ -96,7 +96,7 @@ function deduplicatePass(content: string) {
     entries.map(([text], index) => [text, { from: text, to: `_${index}` }]),
   );
 
-  let out = entries
+  const [importLine, ...lines] = entries
     .flatMap(([text, { locations }]) => {
       const replacement = replacementByText.get(text)!;
       return locations.map((location) => ({ location, replacement }));
@@ -104,17 +104,21 @@ function deduplicatePass(content: string) {
     .sort((a, b) => b.location.start - a.location.start)
     .reduce((acc, { location: { start, end }, replacement: { to } }) => {
       return acc.slice(0, start) + to + acc.slice(end);
-    }, content);
+    }, content)
+    .split("\n");
 
+  let index = 0;
   for (const { from, to } of replacementByText.values()) {
     const duplicate = duplicatesByText.get(from)!;
     const comment = `/** ${duplicate.names.size} duplicates: ${Array.from(
       duplicate.names,
     ).join(", ")} */`;
-    out = `${comment}\nconst ${to} = ${from};\n\n` + out;
+
+    lines.splice(index, 0, `const ${to} = ${from};\n\n` + comment);
+    index++;
   }
 
-  return out;
+  return importLine.replace("Static", "type Static") + "\n" + lines.join("\n");
 }
 
 /** hi */
@@ -197,12 +201,12 @@ function main() {
 
   const code = `export type ${typeName} = ${text}`;
 
-  const output = `\
-  // AUTO-GENERATED — do not edit by hand.
-  // Source: ${path.relative(path.dirname(path.resolve(outputFile)), absInput)}
-  // Run: npx ts-node typebox-codegen.ts --input ... --type ${typeName} --output ...
+  const output = `
+// AUTO-GENERATED — do not edit by hand.
+// Source: ${path.relative(path.dirname(path.resolve(outputFile)), absInput)}
+// Run: npx ts-node typebox-codegen.ts --input ... --type ${typeName} --output ...
 
-  ${deduplicatePass(Codegen.TypeScriptToTypeBox.Generate(code).trim())}
+${deduplicatePass(Codegen.TypeScriptToTypeBox.Generate(code).trim())}
   `;
 
   const absOutput = path.resolve(outputFile);
