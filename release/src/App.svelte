@@ -1,75 +1,55 @@
-<script>
-  import Counter from "./lib/Counter.svelte";
-</script>
+<div class="dropdown inline-block relative">
+  <button
+    class="bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded inline-flex items-center"
+  >
+    <span>Dropdown ?</span>
+  </button>
+  <ul class="dropdown-content absolute hidden text-gray-700 pt-1">
+    <li>
+      <a
+        class="rounded-t bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap"
+        href="#">Option 1</a
+      >
+    </li>
+    <li>
+      <a
+        class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap"
+        href="#">Option 2</a
+      >
+    </li>
+    <li class="dropdown">
+      <a
+        class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap"
+        href="#">Option 3 ?</a
+      >
+      <ul
+        class="dropdown-content absolute hidden text-gray-700 pl-5 ml-24 -mt-10"
+      >
+        <li>
+          <a
+            class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap"
+            href="#">Option 3-1</a
+          >
+        </li>
+        <li>
+          <a
+            class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap"
+            href="#">Option 3-2</a
+          >
+        </li>
+      </ul>
+    </li>
+    <li>
+      <a
+        class="rounded-b bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap"
+        href="#">Option 4</a
+      >
+    </li>
+  </ul>
+</div>
 
-<section id="center">
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/App.svelte</code> and save to test <code>HMR</code></p>
-  </div>
-  <Counter />
-</section>
-
-<div class="ticks"></div>
-
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true">
-      <use href="/icons.svg#documentation-icon"></use>
-    </svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true">
-      <use href="/icons.svg#social-icon"></use>
-    </svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li>
-        <a
-          href="https://github.com/vitejs/vite"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <svg class="button-icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#github-icon"></use>
-          </svg>
-          GitHub
-        </a>
-      </li>
-      <li>
-        <a href="https://chat.vite.dev/" target="_blank" rel="noreferrer">
-          <svg class="button-icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#discord-icon"></use>
-          </svg>
-          Discord
-        </a>
-      </li>
-      <li>
-        <a href="https://x.com/vite_js" target="_blank" rel="noreferrer">
-          <svg class="button-icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#x-icon"></use>
-          </svg>
-          X.com
-        </a>
-      </li>
-      <li>
-        <a
-          href="https://bsky.app/profile/vite.dev"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <svg class="button-icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#bluesky-icon"></use>
-          </svg>
-          Bluesky
-        </a>
-      </li>
-    </ul>
-  </div>
-</section>
-
-<div class="ticks"></div>
-<section id="spacer"></section>
+<style>
+  .dropdown:hover > .dropdown-content {
+    display: block;
+  }
+</style>
