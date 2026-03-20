@@ -21,25 +21,11 @@ import * as fs from "fs";
 import * as Codegen from "@sinclair/typebox-codegen";
 import { Project, ts, Type, Node, SyntaxKind, CallExpression } from "ts-morph";
 import { escape } from "../api/utils/regex";
-import { arg, args } from "./utils";
+import { arg, args } from "./utils/index.js";
 
 const inputFile = arg("--input");
-const outputFile = arg("--output");
 const typeNames = args("--type");
-
-function typeNestingDepth(call: CallExpression): number {
-  let depth = 0;
-  let node = call.getParent();
-  while (node) {
-    if (
-      node.getKind() === SyntaxKind.CallExpression &&
-      (node as CallExpression).getExpression().getText().startsWith("Type.")
-    )
-      depth++;
-    node = node.getParent();
-  }
-  return depth;
-}
+const outputFile = arg("--output");
 
 const extractPropertyAssignment = (node?: Node<ts.Node>) => {
   if (node?.getKind() !== SyntaxKind.PropertyAssignment) return null;
@@ -51,131 +37,212 @@ const extractPropertyAssignment = (node?: Node<ts.Node>) => {
   return JSON.parse(key);
 };
 
-type Location = { start: number; end: number };
-type Replacement = { from: string; to: string };
-type ReplacementEntry = {
-  text: string;
-  locations: Location[];
-  replacement: Replacement;
-  comment?: string;
-};
-type DedupSpecMeta = {
-  names?: Set<string>;
-};
-type DedupSpec = {
-  expression: string;
-  replacementPrefix: string;
-  depth?: number;
-  getMeta?: (call: CallExpression) => DedupSpecMeta | undefined;
-  buildComment?: (text: string, meta: DedupSpecMeta) => string | undefined;
-};
+// ---------------------------------------------------------------------------
+// Deduplication helpers
+// ---------------------------------------------------------------------------
 
-function collectEntries(
-  source: ReturnType<Project["createSourceFile"]>,
-  spec: DedupSpec,
-): ReplacementEntry[] {
-  type Group = { locations: Location[]; meta?: DedupSpecMeta };
-  const groups = new Map<string, Group>();
+const varPrefixByType = new Map<string, string>();
+const varIndexByType = new Map<string, number>();
 
-  const calls = source
-    .getDescendantsOfKind(SyntaxKind.CallExpression)
-    .filter((call) => call.getExpression().getText() === spec.expression)
-    .filter(
-      (call) =>
-        spec.depth === undefined || typeNestingDepth(call) === spec.depth,
-    );
+/** Maps a Type.Xyz expression to a short variable-name prefix like "_obj". */
+function getVarNameForType(expressionText: string): string {
+  const match = expressionText.match(/^Type\.(\w+)/);
+  const typeName = (match?.[1] ?? "Expr").toLowerCase();
+  if (!varPrefixByType.has(typeName)) {
+    const existing = new Set(varPrefixByType.values());
+    let take = 3;
+    let attempt = typeName.slice(0, take);
+    while (existing.has(attempt) && take < typeName.length) {
+      take++;
+      attempt = typeName.slice(0, take);
+    }
+    varPrefixByType.set(typeName, attempt);
+  }
+  const index = (varIndexByType.get(typeName) ?? -1) + 1;
+  varIndexByType.set(typeName, index);
+  return `_${varPrefixByType.get(typeName)}${index}`;
+}
 
+/** How many Type.* call-expression ancestors does this node have? */
+function computeTypeCallDepth(call: CallExpression): number {
+  let depth = 0;
+  let node: Node | undefined = call.getParent();
+  while (node) {
+    if (
+      node.getKind() === SyntaxKind.CallExpression &&
+      /^Type\./.test((node as CallExpression).getExpression().getText())
+    )
+      depth++;
+    node = node.getParent();
+  }
+  return depth;
+}
+
+/**
+ * For Type.Object duplicates, collect the quoted property-key names that
+ * point to this schema so the comment is human-readable.
+ */
+function buildObjectComment(calls: CallExpression[]): string | undefined {
+  const names: string[] = [];
   for (const call of calls) {
-    const location = { start: call.getStart(), end: call.getEnd() };
-
-    const text = call.getText();
-    if (!groups.has(text)) {
-      groups.set(text, { locations: [], meta: spec.getMeta?.(call) });
-    }
-
-    const group = groups.get(text)!;
-    group.locations.push(location);
-
-    const meta = spec.getMeta?.(call);
-    if (meta?.names) {
-      if (!group.meta) group.meta = { names: new Set() };
-      if (!group.meta.names) group.meta.names = new Set();
-      for (const name of meta.names) group.meta.names.add(name);
-    }
+    const key = extractPropertyAssignment(call.getParent());
+    if (key) names.push(key);
   }
-
-  return Array.from(groups.entries())
-    .filter(([, group]) => group.locations.length > 1)
-    .map(([text, group], index) => ({
-      text,
-      locations: group.locations,
-      replacement: { from: text, to: `${spec.replacementPrefix}${index}` },
-      comment: group.meta ? spec.buildComment?.(text, group.meta) : undefined,
-    }));
+  if (names.length === 0) return undefined;
+  return `/** ${calls.length} duplicates: ${names.join(", ")} */`;
 }
 
-function deduplicate(content: string) {
-  const project = new Project({ useInMemoryFileSystem: true });
-  const source = project.createSourceFile("schema.ts", content);
+// A string that will never appear in generated TypeBox code; used as a
+// stable anchor separating the growing declarations block from the export.
+const EXTRACT_MARKER = "// @extract-start\n";
 
-  const specs: DedupSpec[] = [
-    {
-      expression: "Type.Object",
-      replacementPrefix: "_obj",
-      depth: 2,
-      getMeta: (call) => {
-        const modelName = extractPropertyAssignment(call.getParent());
-        return modelName ? { names: new Set([modelName]) } : undefined;
-      },
-      buildComment: (_text, meta) => {
-        if (!meta.names || meta.names.size === 0) return undefined;
-        return `/** ${meta.names.size} duplicates: ${Array.from(
-          meta.names,
-        ).join(", ")} */`;
-      },
-    },
-    {
-      expression: "Type.Literal",
-      replacementPrefix: "_lit",
-      depth: 2,
-    },
-  ];
+/**
+ * Fully deduplicate a generated TypeBox source string.
+ *
+ * Strategy (multi-pass, leaf-first):
+ *
+ * Each pass:
+ *   1. Parse the current body.
+ *   2. Find every nested Type.* call expression that appears more than once
+ *      inside the export body (positions after EXTRACT_MARKER).
+ *   3. Keep only the "leaf" duplicate groups – those whose occurrences don't
+ *      contain any other duplicate expression inside them.  This prevents
+ *      index corruption when two nested expressions are both duplicates.
+ *   4. Assign variable names, apply right-to-left string replacements.
+ *   5. Insert the new `const` declarations just before EXTRACT_MARKER so
+ *      dependency order is always correct (inner things first, outer last).
+ *
+ * After O(depth) passes the export body references only variable names and
+ * no further duplicates exist.
+ */
+function deduplicate(content: string): string {
+  // Drop the `import { Type, … }` line emitted by Codegen; the caller
+  // already wrote the canonical import.
+  const [, ...bodyLines] = content.split("\n");
 
-  const entries: ReplacementEntry[] = [];
-  for (const spec of specs) entries.push(...collectEntries(source, spec));
+  // body layout:  <declarations>  EXTRACT_MARKER  <export statement>
+  let body = EXTRACT_MARKER + bodyLines.join("\n");
 
-  if (entries.length === 0) {
-    const [, ...lines] = content.split("\n");
-    return lines.join("\n");
-  }
+  type CallInfo = {
+    call: CallExpression;
+    text: string;
+    start: number;
+    end: number;
+  };
 
-  // Ignore the first line (assumed to be the import line)
-  const [_, ...lines] = entries
-    .flatMap(({ locations, replacement }) => {
-      return locations.map((location) => ({ location, replacement }));
-    })
-    .sort((a, b) => b.location.start - a.location.start)
-    .reduce((acc, { location: { start, end }, replacement: { to } }) => {
-      return acc.slice(0, start) + to + acc.slice(end);
-    }, content)
-    .split("\n");
+  const MAX_PASSES = 10;
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const markerIdx = body.indexOf(EXTRACT_MARKER);
+    const exportStart = markerIdx + EXTRACT_MARKER.length;
 
-  let index = 0;
-  for (const { replacement, comment } of entries) {
-    const declaration = `const ${replacement.to} = ${replacement.from};`;
-    lines.splice(
-      index,
-      0,
-      comment ? `${comment}\n${declaration}` : declaration,
+    const project = new Project({ useInMemoryFileSystem: true });
+    const source = project.createSourceFile("schema.ts", body);
+
+    // Only examine calls that live inside the export body (after the marker).
+    // Calls inside already-extracted `const` declarations are left untouched;
+    // their text stays valid and their position in the output is already correct.
+    const nestedCalls: CallInfo[] = source
+      .getDescendantsOfKind(SyntaxKind.CallExpression)
+      .filter((call) => call.getStart() >= exportStart)
+      .filter((call) => /^Type\./.test(call.getExpression().getText()))
+      .filter((call) => computeTypeCallDepth(call) > 0)
+      .map((call) => ({
+        call,
+        text: call.getText(),
+        start: call.getStart(),
+        end: call.getEnd(),
+      }));
+
+    // Group by verbatim text; duplicates = groups with length > 1.
+    const byText = new Map<string, CallInfo[]>();
+    for (const item of nestedCalls) {
+      if (!byText.has(item.text)) byText.set(item.text, []);
+      byText.get(item.text)!.push(item);
+    }
+
+    const allDupGroups = [...byText.entries()]
+      .filter(([, items]) => items.length > 1)
+      .map(([text, items]) => ({ text, items }));
+
+    if (allDupGroups.length === 0) break; // fully deduplicated
+
+    // Leaf groups: no item in the group contains an occurrence from another
+    // duplicate group.  Extracting only leaves per pass keeps the string
+    // indices consistent within a single pass.
+    const leafGroups = allDupGroups.filter((group) =>
+      group.items.every(
+        (item) =>
+          !allDupGroups.some(
+            (other) =>
+              other !== group &&
+              other.items.some((o) => o.start > item.start && o.end < item.end),
+          ),
+      ),
     );
-    index++;
+
+    // Safety valve: if somehow nothing is a leaf, break to avoid an
+    // infinite loop (shouldn't happen in valid TypeBox output).
+    if (leafGroups.length === 0) break;
+
+    const textToVar = new Map<string, string>();
+    const thisPassDecls: string[] = [];
+
+    for (const { text, items } of leafGroups) {
+      const varName = getVarNameForType(text);
+      textToVar.set(text, varName);
+      const comment = /^Type\.Object/.test(text)
+        ? buildObjectComment(items.map((i) => i.call))
+        : undefined;
+      const decl = `const ${varName} = ${text};`;
+      thisPassDecls.push(comment ? `${comment}\n${decl}` : decl);
+    }
+
+    // Apply replacements right-to-left so earlier positions stay valid.
+    const replacements = leafGroups
+      .flatMap(({ text, items }) =>
+        items.map((item) => ({
+          start: item.start,
+          end: item.end,
+          to: textToVar.get(text)!,
+        })),
+      )
+      .sort((a, b) => b.start - a.start);
+
+    let newBody = body;
+    for (const { start, end, to } of replacements) {
+      newBody = newBody.slice(0, start) + to + newBody.slice(end);
+    }
+
+    // Insert this pass's declarations just before the marker.
+    // Because we prepend each new pass before the marker, and each pass's
+    // expressions depend on the *previous* pass's variables (which are
+    // already above the marker), the final declaration order is:
+    //   pass-0 decls  →  pass-1 decls  →  …  →  pass-N decls  →  MARKER  →  export
+    // i.e. always correct dependency order.
+    const newMarkerIdx = newBody.indexOf(EXTRACT_MARKER);
+    newBody =
+      newBody.slice(0, newMarkerIdx) +
+      thisPassDecls.join("\n") +
+      "\n" +
+      newBody.slice(newMarkerIdx);
+
+    body = newBody;
+    console.log(
+      `    pass ${pass + 1}: extracted ${
+        leafGroups.length
+      } unique expression(s)`,
+    );
   }
 
-  return lines.join("\n");
+  // Strip the marker; everything before it becomes the declarations preamble.
+  return body.replace(EXTRACT_MARKER, "");
 }
+
+// ---------------------------------------------------------------------------
+// Type resolution helpers (unchanged from original)
+// ---------------------------------------------------------------------------
 
 function resolveAliasText(type: Type, contextNode: Node): string {
-  // Follow the alias symbol to its actual declaration
   const symbol = type.getAliasSymbol() ?? type.getSymbol();
   const declaration = symbol
     ?.getDeclarations()
@@ -210,6 +277,10 @@ const typesToResolve = [
     new RegExp(`PI\\.${escape(type)}`, "g"),
   ],
 }));
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 
 function main() {
   const absInput = path.resolve(inputFile);
