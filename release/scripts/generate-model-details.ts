@@ -31,8 +31,34 @@ function arg(flag: string): string {
   return process.argv[idx + 1];
 }
 
+function args(flag: string): string[] {
+  const values: string[] = [];
+  for (let i = 0; i < process.argv.length; i++) {
+    if (process.argv[i] === flag) {
+      const next = process.argv[i + 1];
+      if (!next || next.startsWith("--")) {
+        console.error(`Missing required argument value for: ${flag}`);
+        process.exit(1);
+      }
+      values.push(
+        ...next
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      );
+    }
+  }
+
+  if (values.length === 0) {
+    console.error(`Missing required argument: ${flag}`);
+    process.exit(1);
+  }
+
+  return values;
+}
+
 const inputFile = arg("--input");
-const typeName = arg("--type");
+const typeNames = args("--type");
 const outputFile = arg("--output");
 
 function nestingDepth(call: CallExpression): number {
@@ -59,46 +85,126 @@ const extractPropertyAssignment = (node?: Node<ts.Node>) => {
   return JSON.parse(key);
 };
 
-function deduplicatePass(content: string) {
+type Location = { start: number; end: number };
+type Replacement = { from: string; to: string };
+type ReplacementEntry = {
+  text: string;
+  locations: Location[];
+  replacement: Replacement;
+  comment?: string;
+};
+type DedupSpecMeta = {
+  names?: Set<string>;
+};
+type DedupSpec = {
+  expression: string;
+  replacementPrefix: string;
+  minDepth?: number;
+  shouldInclude?: (location: Location, selected: ReplacementEntry[]) => boolean;
+  getMeta?: (call: CallExpression) => DedupSpecMeta | undefined;
+  buildComment?: (text: string, meta: DedupSpecMeta) => string | undefined;
+};
+
+function isInsideAnyRange(location: Location, ranges: Location[]) {
+  return ranges.some(
+    (range) => location.start >= range.start && location.end <= range.end,
+  );
+}
+
+function collectEntries(
+  source: ReturnType<Project["createSourceFile"]>,
+  spec: DedupSpec,
+  selected: ReplacementEntry[],
+): ReplacementEntry[] {
+  type Group = { locations: Location[]; meta?: DedupSpecMeta };
+  const groups = new Map<string, Group>();
+
+  const calls = source
+    .getDescendantsOfKind(SyntaxKind.CallExpression)
+    .filter((call) => call.getExpression().getText() === spec.expression)
+    .filter((call) =>
+      spec.minDepth !== undefined ? nestingDepth(call) === spec.minDepth : true,
+    );
+
+  for (const call of calls) {
+    const location = { start: call.getStart(), end: call.getEnd() };
+    if (spec.shouldInclude && !spec.shouldInclude(location, selected)) continue;
+
+    const text = call.getText();
+    if (!groups.has(text)) {
+      groups.set(text, { locations: [], meta: spec.getMeta?.(call) });
+    }
+
+    const group = groups.get(text)!;
+    group.locations.push(location);
+
+    const meta = spec.getMeta?.(call);
+    if (meta?.names) {
+      if (!group.meta) group.meta = { names: new Set() };
+      if (!group.meta.names) group.meta.names = new Set();
+      for (const name of meta.names) group.meta.names.add(name);
+    }
+  }
+
+  return Array.from(groups.entries())
+    .filter(([, group]) => group.locations.length > 1)
+    .map(([text, group], index) => ({
+      text,
+      locations: group.locations,
+      replacement: { from: text, to: `${spec.replacementPrefix}${index}` },
+      comment: group.meta ? spec.buildComment?.(text, group.meta) : undefined,
+    }));
+}
+
+function deduplicate(content: string) {
   const project = new Project({ useInMemoryFileSystem: true });
   const source = project.createSourceFile("schema.ts", content);
 
-  const modelOptions = source
-    .getDescendantsOfKind(SyntaxKind.CallExpression)
-    .filter((c) => c.getExpression().getText() === "Type.Object")
-    .filter((c) => nestingDepth(c) === 2);
+  const specs: DedupSpec[] = [
+    {
+      expression: "Type.Object",
+      replacementPrefix: "_obj",
+      minDepth: 2,
+      getMeta: (call) => {
+        const modelName = extractPropertyAssignment(call.getParent());
+        return modelName ? { names: new Set([modelName]) } : undefined;
+      },
+      buildComment: (_text, meta) => {
+        if (!meta.names || meta.names.size === 0) return undefined;
+        return `/** ${meta.names.size} duplicates: ${Array.from(
+          meta.names,
+        ).join(", ")} */`;
+      },
+    },
+    {
+      expression: "Type.Literal",
+      replacementPrefix: "_lit",
+      shouldInclude: (location, selected) => {
+        const objectRanges = selected
+          .filter(
+            (entry) =>
+              entry.replacement.to.startsWith("_") &&
+              !entry.replacement.to.startsWith("_lit_"),
+          )
+          .flatMap((entry) => entry.locations);
+        return !isInsideAnyRange(location, objectRanges);
+      },
+    },
+  ];
 
-  type Location = { start: number; end: number };
-  type DupeGroup = { locations: Location[]; names: Set<string> };
-  const duplicatesByText = new Map<string, DupeGroup>();
-
-  for (const call of modelOptions) {
-    const text = call.getText();
-    if (!duplicatesByText.has(text))
-      duplicatesByText.set(text, {
-        locations: [],
-        names: new Set(),
-      });
-    const group = duplicatesByText.get(text)!;
-
-    group.locations.push({ start: call.getStart(), end: call.getEnd() });
-
-    const modelName = extractPropertyAssignment(call.getParent());
-    if (modelName) group.names.add(modelName);
+  const selectedEntries: ReplacementEntry[] = [];
+  for (const spec of specs) {
+    selectedEntries.push(...collectEntries(source, spec, selectedEntries));
   }
 
-  const entries = Array.from(duplicatesByText.entries()).filter(
-    ([, { locations }]) => locations.length > 1,
-  );
+  if (selectedEntries.length === 0) {
+    const [, ...lines] = content.split("\n");
+    return lines.join("\n");
+  }
 
-  type Replacement = { from: string; to: string };
-  const replacementByText = new Map<string, Replacement>(
-    entries.map(([text], index) => [text, { from: text, to: `_${index}` }]),
-  );
-
-  const [importLine, ...lines] = entries
-    .flatMap(([text, { locations }]) => {
-      const replacement = replacementByText.get(text)!;
+  // Ignore the first line (assumed to be the import line)
+  const [_, ...lines] = selectedEntries
+    .flatMap(({ locations, replacement }) => {
       return locations.map((location) => ({ location, replacement }));
     })
     .sort((a, b) => b.location.start - a.location.start)
@@ -108,20 +214,19 @@ function deduplicatePass(content: string) {
     .split("\n");
 
   let index = 0;
-  for (const { from, to } of replacementByText.values()) {
-    const duplicate = duplicatesByText.get(from)!;
-    const comment = `/** ${duplicate.names.size} duplicates: ${Array.from(
-      duplicate.names,
-    ).join(", ")} */`;
-
-    lines.splice(index, 0, `const ${to} = ${from};\n\n` + comment);
+  for (const { replacement, comment } of selectedEntries) {
+    const declaration = `const ${replacement.to} = ${replacement.from};`;
+    lines.splice(
+      index,
+      0,
+      comment ? `${comment}\n${declaration}` : declaration,
+    );
     index++;
   }
 
-  return importLine.replace("Static", "type Static") + "\n" + lines.join("\n");
+  return lines.join("\n");
 }
 
-/** hi */
 function resolveAliasText(type: Type, contextNode: Node): string {
   // Follow the alias symbol to its actual declaration
   const symbol = type.getAliasSymbol() ?? type.getSymbol();
@@ -172,12 +277,10 @@ function main() {
   }
 
   console.log(`📖  Reading:   ${absInput}`);
-  console.log(`🔎  Type:      ${typeName}`);
+  console.log(`🔎  Types:     ${typeNames.join(", ")}`);
 
   const tsConfigFilePath = findTsConfig(absInput);
-  if (tsConfigFilePath) {
-    console.log(`⚙️   tsconfig:  ${tsConfigFilePath}`);
-  }
+  if (tsConfigFilePath) console.log(`⚙️   tsconfig:  ${tsConfigFilePath}`);
 
   const project = new Project({
     ...(tsConfigFilePath
@@ -187,8 +290,21 @@ function main() {
   const sourceFile = project.addSourceFileAtPath(absInput);
   project.resolveSourceFileDependencies();
 
-  const typeAlias = sourceFile.getTypeAliasOrThrow(typeName);
-  let text = typeAlias.getType().getText(typeAlias);
+  const blocks: string[] = [
+    "// AUTO-GENERATED — do not edit by hand.",
+    `// Source: ${path.relative(
+      path.dirname(path.resolve(outputFile)),
+      absInput,
+    )}`,
+    `// Run: npx ts-node generate-model-details.ts --input ... --type ${typeNames.join(
+      " --type ",
+    )} --output ...`,
+    "",
+    `import { Type, type Static } from "@sinclair/typebox";`,
+    "",
+  ];
+
+  const modifiers = new Array<(text: string) => string>();
 
   for (const { type, queries } of typesToResolve) {
     const aliasType = sourceFile.getTypeAliasOrThrow(type).getType();
@@ -196,22 +312,27 @@ function main() {
       aliasType,
       sourceFile.getTypeAliasOrThrow(type),
     );
-    for (const query of queries) text = text.replace(query, resolved);
+    for (const query of queries)
+      modifiers.push((text) => text.replace(query, resolved));
   }
 
-  const code = `export type ${typeName} = ${text}`;
+  for (let i = 0; i < typeNames.length; i++) {
+    const typeName = typeNames[i];
 
-  const output = `
-// AUTO-GENERATED — do not edit by hand.
-// Source: ${path.relative(path.dirname(path.resolve(outputFile)), absInput)}
-// Run: npx ts-node typebox-codegen.ts --input ... --type ${typeName} --output ...
+    console.log(`\n🛠️   Generating: ${typeName}`);
 
-${deduplicatePass(Codegen.TypeScriptToTypeBox.Generate(code).trim())}
-  `;
+    const typeAlias = sourceFile.getTypeAliasOrThrow(typeName);
+    let text = typeAlias.getType().getText(typeAlias);
+
+    for (const modifier of modifiers) text = modifier(text);
+
+    const code = `export type ${typeName} = ${text}`;
+    blocks.push(deduplicate(Codegen.TypeScriptToTypeBox.Generate(code).trim()));
+  }
 
   const absOutput = path.resolve(outputFile);
   fs.mkdirSync(path.dirname(absOutput), { recursive: true });
-  fs.writeFileSync(absOutput, output, "utf8");
+  fs.writeFileSync(absOutput, blocks.join("\n\n") + "\n", "utf8");
 
   console.log(`🎉  Written to: ${absOutput}`);
 }

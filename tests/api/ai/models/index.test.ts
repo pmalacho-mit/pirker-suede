@@ -98,4 +98,17 @@ describe("models", () => {
     expect(openaiModels).toBeDefined();
     expect(openaiModels).toContain("gpt-4o");
   });
+
+  test("filtering providers and models", () => {
+    const all = getProviders("all");
+    expect(all.length).toBeGreaterThan(0);
+
+    const hasApiKey = getProviders("hasApiKey");
+    expect(hasApiKey.length).toBe(0);
+
+    process.env["OPENAI_API_KEY"] = "fake";
+
+    const hasApiKeyAfter = getProviders("hasApiKey");
+    expect(hasApiKeyAfter).toContain("openai");
+  });
 });

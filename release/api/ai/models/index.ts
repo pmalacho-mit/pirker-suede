@@ -1,7 +1,9 @@
 import * as PI from "@mariozechner/pi-ai";
 import type { TLiteral, TSchema } from "@sinclair/typebox";
-import { StreamOptionsByProviderAndModel } from "./options.generated.js";
-import { StreamFunctionByProviderAndModel } from "./streams.generated.js";
+import {
+  StreamOptionsByProviderAndModel,
+  StreamFunctionByProviderAndModel,
+} from "./streams.generated.js";
 import { is } from "../../utils/typebox.js";
 
 export namespace StreamOptions {
@@ -90,18 +92,36 @@ export const getStreamFunction = <
 
 export type Provider = StreamOptions.Provider & StreamFunctions.Provider;
 
-export const getProviders = () =>
-  Object.keys(StreamOptionsByProviderAndModel.properties) as Provider[];
+const filters = {
+  all: undefined,
+  hasApiKey: (provider: Provider) => PI.getEnvApiKey(provider) !== undefined,
+};
 
-export const getModelsForProvider = <P extends Provider>(provider: P) =>
-  Object.keys(
-    StreamOptionsByProviderAndModel.properties[provider].properties,
-  ) as StreamOptions.Model<P>[];
+type ProviderFilter = keyof typeof filters;
 
-export const getModelsByProvider = () => {
-  const providers = getProviders();
+const filterDefault = "all" satisfies ProviderFilter;
+
+export const getProviders = (filter: ProviderFilter = filterDefault) => {
+  const providers = Object.keys(
+    StreamOptionsByProviderAndModel.properties,
+  ) as Provider[];
+  return filter === "all" ? providers : providers.filter(filters[filter]);
+};
+
+export const getModelsForProvider = <P extends Provider>(
+  provider: P,
+  filter: ProviderFilter = filterDefault,
+) =>
+  (filter === "all" || filters[filter](provider)
+    ? Object.keys(
+        StreamOptionsByProviderAndModel.properties[provider].properties,
+      )
+    : []) as StreamOptions.Model<P>[];
+
+export const getModelsByProvider = (filter: ProviderFilter = filterDefault) => {
+  const providers = getProviders(filter);
   const result = {} as { [P in Provider]: StreamOptions.Model<P>[] };
   for (const provider of providers)
-    result[provider] = getModelsForProvider(provider);
+    result[provider] = getModelsForProvider(provider, filter);
   return result;
 };
