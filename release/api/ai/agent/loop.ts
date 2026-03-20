@@ -6,8 +6,8 @@
 import {
   type AssistantMessage,
   type Context,
-  EventStream,
   type ToolResultMessage,
+  EventStream,
   validateToolArguments,
 } from "@mariozechner/pi-ai";
 import type {
@@ -19,7 +19,7 @@ import type {
   AgentToolCall,
   AgentToolResult,
 } from "./types.js";
-import { getModelStream } from "../models/index.js";
+import { convertToLlm } from "./defaults.js";
 
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
 
@@ -110,9 +110,6 @@ function createAgentEventMechanism(): EventMechanism {
   };
 }
 
-/**
- * Main loop logic shared by agentLoop and agentLoopContinue.
- */
 async function runLoop(
   currentContext: AgentContext,
   newMessages: AgentMessage[],
@@ -214,19 +211,16 @@ async function streamAssistantResponse(
 ): Promise<AssistantMessage> {
   // Apply context transform if configured (AgentMessage[] → AgentMessage[])
   let messages = context.messages;
-  if (config.transformContext) {
+  if (config.transformContext)
     messages = await config.transformContext(messages, signal);
-  }
 
   const llmContext: Context = {
     systemPrompt: context.systemPrompt,
-    messages: await config.convertToLlm(messages),
+    messages: await (config.convertToLlm ?? convertToLlm)(messages),
     tools: context.tools,
   };
 
-  const stream = getModelStream(config.provider, config.model);
-
-  const response = await stream(llmContext, {
+  const response = await config.stream(llmContext, {
     ...config,
     signal,
   });

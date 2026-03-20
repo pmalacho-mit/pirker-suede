@@ -21,6 +21,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
+    "paths": {
+      "@release": ["./release"],
+      "@release/*": ["./release/*"]
+    }
   },
   "include": ["tests", "release"],
 }

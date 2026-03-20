@@ -4,7 +4,7 @@ import {
   stream,
   streamAnthropic,
   streamOpenAIResponses,
-} from "../../../../release/node_modules/@mariozechner/pi-ai";
+} from "@release/node_modules/@mariozechner/pi-ai";
 import {
   getStreamFunction,
   getStreamOptionsSchema,
@@ -13,7 +13,7 @@ import {
   getModelsByProvider,
   type StreamFunctions,
   type StreamOptions,
-} from "../../../../release/api/ai/models/";
+} from "@release/api/ai/models/";
 
 describe("models", () => {
   test("StreamFunctions types", () => {
