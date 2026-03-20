@@ -153,6 +153,9 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   ) => Promise<AgentMessage[]>;
 
   /**
+   * NOTE: Removing in favor of assuming api keys are placed in a .env,
+   * and only providers with valid api keys will be included when selecting a model.
+   *
    * Resolves an API key dynamically for each LLM call.
    *
    * Useful for short-lived OAuth tokens (e.g., GitHub Copilot) that may expire
@@ -160,9 +163,9 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
    *
    * Contract: must not throw or reject. Return undefined when no key is available.
    */
-  getApiKey?: (
-    provider: string,
-  ) => Promise<string | undefined> | string | undefined;
+  // getApiKey?: (
+  //   provider: string,
+  // ) => Promise<string | undefined> | string | undefined;
 
   /**
    * Returns steering messages to inject into the conversation mid-run.
