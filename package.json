@@ -8,9 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
-    "codegen:options": "npx tsx scripts/generate-model-details.ts --input ./api/ai/models/index.d.ts --output ./api/ai/models/options.generated.ts --type StreamOptionsByProviderAndModel",
-    "codegen:streams": "npx tsx scripts/generate-model-details.ts --input ./api/ai/models/index.d.ts --output ./api/ai/models/streams.generated.ts --type StreamFunctionByProviderAndModel",
-    "codegen": "npm run codegen:options && npm run codegen:streams"
+    "codegen": "npx tsx scripts/generate-model-details.ts --input ./api/ai/models/streams.d.ts --output ./api/ai/models/streams.generated.ts --type StreamOptionsByProviderAndModel --type StreamFunctionByProviderAndModel"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
@@ -30,6 +28,7 @@
     "@sinclair/typebox-codegen": "^0.11.1",
     "chalk": "^5.6.2",
     "diff": "^8.0.3",
+    "dotenv": "^17.3.1",
     "extract-zip": "^2.0.1",
     "file-type": "^21.3.3",
     "glob": "^13.0.6",

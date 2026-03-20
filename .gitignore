@@ -1,4 +1,5 @@
 **/*.generated.*
+**/.env
 
 # Logs
 logs
