@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test": "vitest"
+    "test": "vitest",
+    "release": "npm run --prefix release --"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
