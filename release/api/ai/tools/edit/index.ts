@@ -1,11 +1,11 @@
 import type { AgentTool } from "../../agent/types.js";
 import { type Static, Type } from "@sinclair/typebox";
-import { constants } from "fs";
+import { constants } from "node:fs";
 import {
   access as fsAccess,
   readFile as fsReadFile,
   writeFile as fsWriteFile,
-} from "fs/promises";
+} from "node:fs/promises";
 import {
   detectLineEnding,
   fuzzyFindText,

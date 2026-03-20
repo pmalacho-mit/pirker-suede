@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentTool } from "../agent/types.js";
 import { type Static, Type } from "@sinclair/typebox";
-import { spawn } from "child_process";
+import { spawn } from "node:child_process";
 import { waitForChildProcess } from "../../utils/child-process.js";
 import {
   getShellConfig,

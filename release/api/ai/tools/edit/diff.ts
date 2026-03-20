@@ -4,8 +4,8 @@
  */
 
 import { diffLines } from "diff";
-import { constants } from "fs";
-import { access, readFile } from "fs/promises";
+import { constants } from "node:fs";
+import { access, readFile } from "node:fs/promises";
 import { resolveToCwd } from "../../../utils/path.js";
 
 export function detectLineEnding(content: string): "\r\n" | "\n" {
