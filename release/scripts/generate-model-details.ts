@@ -67,20 +67,35 @@ function getPropKeyForCall(call: CallExpression): string | null {
 // Deduplication data structures
 // ---------------------------------------------------------------------------
 
+interface RawSpan {
+  start: number;
+  end: number;
+  text: string;
+  typeMethod: string;
+  propKey?: string;
+}
+
 /**
  * All the information we need about one duplicate group, computed once from
  * the ts-morph AST.
  */
-interface DupeGroup {
+interface DupGroup {
   /** The shared verbatim text of every occurrence. */
   origText: string;
   typeMethod: string;
   /** Every occurrence in the body, with absolute positions and optional propKey. */
   spans: Array<{ start: number; end: number; propKey?: string }>;
   /**
-   * Positions of *direct-child* duplicate groups within this group's
-   * representative (first) occurrence, expressed relative to that occurrence's
-   * `start`.  Used by evolveText so it never has to re-parse anything.
+   * The maximal duplicate-group spans immediately inside this group's
+   * representative occurrence, expressed relative to that occurrence's `start`.
+   *
+   * "Maximal" means: not contained within any other duplicate-group span that
+   * is itself inside the representative occurrence.  These are exactly the
+   * sub-expressions that `evolveText` needs to substitute.
+   *
+   * Crucially, this is computed LOCAL to the representative span — not from
+   * global containment relationships across the whole body — so it is immune
+   * to false intermediaries that contain the same text elsewhere.
    */
   directChildSlots: Array<{ start: number; end: number; origText: string }>;
 }
@@ -118,22 +133,15 @@ function getVarNameForType(expressionText: string): string {
  * Parse `body` once with ts-morph and return all duplicate nested Type.*
  * call groups in topological order (inner groups first).
  *
- * Also pre-computes `directChildSlots` for each group so that evolveText
- * can produce the declaration body with zero additional parsing.
+ * Topo sort uses an O(n log n) interval sweep across ALL spans.
+ * `directChildSlots` is computed LOCAL to each group's representative span
+ * to avoid false intermediaries from other parts of the body.
  */
-function buildDupeGroups(body: string): DupeGroup[] {
+function buildDupGroups(body: string): DupGroup[] {
   const project = new Project({ useInMemoryFileSystem: true });
   const source = project.createSourceFile("schema.ts", body);
 
   // ── Collect every nested Type.* call span ────────────────────────────
-  interface RawSpan {
-    start: number;
-    end: number;
-    text: string;
-    typeMethod: string;
-    propKey?: string;
-  }
-
   const rawSpans: RawSpan[] = source
     .getDescendantsOfKind(SyntaxKind.CallExpression)
     .filter((call) => /^Type\./.test(call.getExpression().getText()))
@@ -168,11 +176,10 @@ function buildDupeGroups(body: string): DupeGroup[] {
 
   const n = rawGroups.length;
 
-  // ── Build containment edges via O(n log n) interval sweep ────────────
+  // ── Topo sort via O(n log n) interval sweep + Kahn's algorithm ───────
   //
-  // outEdges[inner_gi] = Set<outer_gi>
-  // Means: group `inner_gi` is contained within group `outer_gi`, so inner
-  // must be processed (extracted) before outer.
+  // We sweep ALL spans (from all groups) to find containment edges.
+  // outEdges[inner_gi] = Set<outer_gi>: inner must be processed before outer.
 
   const flat = rawGroups.flatMap((g, gi) =>
     g.map((s) => ({ start: s.start, end: s.end, gi })),
@@ -201,11 +208,9 @@ function buildDupeGroups(body: string): DupeGroup[] {
     sweepStack.push({ end: span.end, gi: span.gi });
   }
 
-  // ── Topological sort (Kahn's algorithm) ──────────────────────────────
   const topoOrder: number[] = [];
   const queue: number[] = [];
   for (let i = 0; i < n; i++) if (inDegree[i] === 0) queue.push(i);
-
   let head = 0;
   while (head < queue.length) {
     const gi = queue[head++];
@@ -215,59 +220,77 @@ function buildDupeGroups(body: string): DupeGroup[] {
     }
   }
 
-  // ── Compute direct children for each group ───────────────────────────
-  //
-  // containedBy[outer_gi] = Set<inner_gi> (all groups inside outer, direct or not)
-  // directChildren[outer_gi] = immediate children only (no group Z with inner ⊂ Z ⊂ outer)
-  //
-  // A child X of outer G is *direct* when no other group Z satisfies X ⊂ Z ⊂ G.
-  // Equivalently: X is not in containedBy[Z] for any Z that is itself in containedBy[G].
+  // ── Build a lookup: text → group index ───────────────────────────────
+  const textToGi = new Map<string, number>();
+  for (let gi = 0; gi < n; gi++) textToGi.set(rawGroups[gi][0].text, gi);
 
-  const containedBy: Set<number>[] = Array.from({ length: n }, () => new Set());
-  for (let inner = 0; inner < n; inner++) {
-    for (const outer of outEdges[inner]) containedBy[outer].add(inner);
-  }
+  // ── Compute directChildSlots LOCAL to each representative span ───────
+  //
+  // For outer group G with representative span R:
+  //   1. Collect every duplicate-group span that falls strictly inside R.
+  //   2. Keep only "maximal" such spans — those not contained within any
+  //      other duplicate-group span that is also inside R.
+  //   3. Record their positions relative to R.start.
+  //
+  // "Local" is the key word: we do NOT use the global containedBy/outEdges
+  // structures for this step, because a group Z might contain group B
+  // somewhere ELSE in the body, incorrectly making B appear non-direct here.
 
-  const directChildren: Set<number>[] = Array.from(
-    { length: n },
-    () => new Set(),
-  );
-  for (let outer = 0; outer < n; outer++) {
-    for (const inner of containedBy[outer]) {
-      // inner is a direct child iff no intermediary Z ∈ containedBy[outer] contains it
-      const isDirect = !Array.from(containedBy[outer]).some(
-        (z) => z !== inner && containedBy[z].has(inner),
-      );
-      if (isDirect) directChildren[outer].add(inner);
-    }
-  }
+  const directChildSlotsFor = (gi: number): DupGroup["directChildSlots"] => {
+    const repSpan = rawGroups[gi][0];
+
+    // All duplicate-group spans strictly inside the representative span,
+    // from a DIFFERENT group (gi is the outer group, we want inner groups).
+    const innerSpans = rawSpans
+      .filter(
+        (s) =>
+          s.start > repSpan.start &&
+          s.end <= repSpan.end &&
+          byText.has(s.text) &&
+          byText.get(s.text)!.length > 1 &&
+          s.text !== repSpan.text, // exclude self-matches
+      )
+      .map((s) => ({ start: s.start, end: s.end, text: s.text }));
+
+    if (innerSpans.length === 0) return [];
+
+    // Maximal = not contained within any other innerSpan.
+    const maximal = innerSpans.filter(
+      (s) =>
+        !innerSpans.some(
+          (other) =>
+            other !== s && other.start <= s.start && other.end >= s.end,
+        ),
+    );
+
+    // Deduplicate by (start, end) — multiple rawSpans might share the same
+    // position if e.g. the same call is visited more than once.
+    const seen = new Set<number>();
+    return maximal
+      .filter((s) => {
+        if (seen.has(s.start)) return false;
+        seen.add(s.start);
+        return true;
+      })
+      .map((s) => ({
+        start: s.start - repSpan.start,
+        end: s.end - repSpan.start,
+        origText: s.text,
+      }));
+  };
 
   // ── Assemble DupGroup records in topo order ───────────────────────────
   return topoOrder.map((gi) => {
     const group = rawGroups[gi];
-    const repSpan = group[0]; // representative occurrence
-
-    // For each direct child group, find ALL its occurrences that sit inside
-    // the representative span and record their relative positions.
-    const directChildSlots = Array.from(directChildren[gi]).flatMap((childGi) =>
-      rawGroups[childGi]
-        .filter((s) => s.start >= repSpan.start && s.end <= repSpan.end)
-        .map((s) => ({
-          start: s.start - repSpan.start,
-          end: s.end - repSpan.start,
-          origText: rawGroups[childGi][0].text,
-        })),
-    );
-
     return {
-      origText: repSpan.text,
-      typeMethod: repSpan.typeMethod,
+      origText: group[0].text,
+      typeMethod: group[0].typeMethod,
       spans: group.map((s) => ({
         start: s.start,
         end: s.end,
         propKey: s.propKey,
       })),
-      directChildSlots,
+      directChildSlots: directChildSlotsFor(gi),
     };
   });
 }
@@ -285,7 +308,7 @@ function buildDupeGroups(body: string): DupeGroup[] {
  */
 function evolveText(
   origText: string,
-  directChildSlots: DupeGroup["directChildSlots"],
+  directChildSlots: DupGroup["directChildSlots"],
   assignedVars: Map<string, string>,
 ): string {
   if (directChildSlots.length === 0) return origText;
@@ -301,7 +324,7 @@ function evolveText(
   return result;
 }
 
-function buildObjectComment(group: DupeGroup): string | undefined {
+function buildObjectComment(group: DupGroup): string | undefined {
   const names = group.spans
     .map((s) => s.propKey)
     .filter((k): k is string => k !== undefined);
@@ -321,11 +344,11 @@ function buildObjectComment(group: DupeGroup): string | undefined {
  *  2. Group identical spans; filter to those with > 1 occurrence.
  *  3. Build a containment DAG via an O(n log n) interval sweep and topologically
  *     sort it (inner groups first) with Kahn's algorithm.
- *  4. Pre-compute direct-child slots (relative byte positions of each group's
- *     immediate children within its representative span text).
+ *  4. Pre-compute direct-child slots LOCAL to each group's representative span
+ *     (maximal duplicate-group spans within the representative occurrence).
  *  5. Process groups in topo order:
  *       a. Evolve the declaration text by substituting direct-child var names
- *          into the representative span text at their pre-computed positions.
+ *          at their pre-computed positions in the representative span text.
  *       b. Assign a variable name; record the `const` declaration.
  *       c. Replace all occurrences in the body with split/join — safe because
  *          TypeBox codegen never embeds `Type.*` syntax inside string literals.
@@ -336,7 +359,7 @@ function deduplicate(content: string): string {
   const [, ...bodyLines] = content.split("\n");
   let body = bodyLines.join("\n");
 
-  const dupGroups = buildDupeGroups(body);
+  const dupGroups = buildDupGroups(body);
   if (dupGroups.length === 0) return body;
 
   const declarations: string[] = [];
@@ -439,7 +462,9 @@ function main() {
     `// Run: npx ts-node generate-model-details.ts --input ... --type ${typeNames.join(
       " --type ",
     )} --output ...`,
+    "",
     `import { Type, type Static } from "@sinclair/typebox";`,
+    "",
   ];
 
   const modifiers = new Array<(text: string) => string>();
