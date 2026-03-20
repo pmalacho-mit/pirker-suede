@@ -11,6 +11,7 @@ import type {
   ToolResultMessage,
 } from "@mariozechner/pi-ai";
 import type { Static, TSchema } from "@sinclair/typebox";
+import type { Provider, ModelForProvider } from "../models";
 
 /**
  * Stream function used by the agent loop.
@@ -96,8 +97,18 @@ export interface AfterToolCallContext {
   context: AgentContext;
 }
 
-export interface AgentLoopConfig extends SimpleStreamOptions {
-  model: Model<any>;
+export interface AgentLoopConfig<
+  TProvider extends Provider = Provider,
+  TModel extends ModelForProvider<TProvider> = ModelForProvider<TProvider>,
+> extends SimpleStreamOptions {
+  provider: TProvider;
+  model: TModel;
+
+  /**
+   * NOTE: Removed in favor of passing around provider/model,
+   * so that the model and stream function can be resolved dynamically at each LLM call.
+   */
+  // model: Model<any>;
 
   /**
    * Converts AgentMessage[] to LLM-compatible Message[] before each LLM call.

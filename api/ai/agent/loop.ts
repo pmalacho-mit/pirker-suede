@@ -18,8 +18,8 @@ import type {
   AgentTool,
   AgentToolCall,
   AgentToolResult,
-  StreamFn,
 } from "./types.js";
+import { getModelStream } from "../models/index.js";
 
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
 
@@ -37,7 +37,6 @@ export type LoopPayload = {
   config: AgentLoopConfig;
   /** Signal to abort the agent loop */
   signal: AbortSignal;
-  streamFn: StreamFn;
 };
 
 /**
@@ -71,7 +70,7 @@ const validateStartCondition = ({
 };
 
 export async function runAgentLoop(
-  { prompts, context, config, signal, streamFn }: LoopPayload,
+  { prompts, context, config, signal }: LoopPayload,
   emit: AgentEventSink,
 ): Promise<AgentMessage[]> {
   const newMessages = prompts ? [...prompts] : [];
@@ -89,7 +88,7 @@ export async function runAgentLoop(
       await emit({ type: "message_end", message: prompt });
     }
 
-  await runLoop(currentContext, newMessages, config, signal, emit, streamFn);
+  await runLoop(currentContext, newMessages, config, signal, emit);
   return newMessages;
 }
 
@@ -120,7 +119,6 @@ async function runLoop(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-  streamFn: StreamFn,
 ): Promise<void> {
   let firstTurn = true;
   // Check for steering messages at start (user may have typed while waiting)
@@ -153,7 +151,6 @@ async function runLoop(
         config,
         signal,
         emit,
-        streamFn,
       );
       newMessages.push(message);
 
@@ -214,7 +211,6 @@ async function streamAssistantResponse(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-  streamFn: StreamFn,
 ): Promise<AssistantMessage> {
   // Apply context transform if configured (AgentMessage[] → AgentMessage[])
   let messages = context.messages;
@@ -228,7 +224,9 @@ async function streamAssistantResponse(
     tools: context.tools,
   };
 
-  const response = await streamFn(config.model, llmContext, {
+  const stream = getModelStream(config.provider, config.model);
+
+  const response = await stream(llmContext, {
     ...config,
     signal,
   });
