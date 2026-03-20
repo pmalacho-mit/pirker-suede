@@ -5,6 +5,7 @@ import {
   StreamFunctionByProviderAndModel,
 } from "./streams.generated.js";
 import { is } from "../../utils/typebox.js";
+import type { BindFirst } from "../../utils/types.js";
 
 export namespace StreamOptions {
   type Properties = typeof StreamOptionsByProviderAndModel.properties;
@@ -134,8 +135,10 @@ export const getModelStream = <
 >(
   provider: P,
   model: M,
-) =>
+): BindFirst<typeof PI.stream> =>
   (getStreamFunction(provider, model) as typeof PI.stream).bind(
     null,
     PI.getModel(provider, model as any),
   );
+
+export type ResolvedStream = ReturnType<typeof getModelStream>;

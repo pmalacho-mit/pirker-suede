@@ -6,3 +6,10 @@ export type ExpandRecursively<T> = T extends object
     ? { [K in keyof O]: ExpandRecursively<O[K]> }
     : never
   : T;
+
+export type BindFirst<F extends (...args: any[]) => any> = F extends (
+  first: any,
+  ...rest: infer R
+) => infer Ret
+  ? (...args: R) => Ret
+  : never;
