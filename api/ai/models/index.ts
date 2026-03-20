@@ -91,6 +91,8 @@ export const getStreamFunction = <
   ] as StreamFunctions.Function<Provider, Model>;
 
 export type Provider = StreamOptions.Provider & StreamFunctions.Provider;
+export type ModelForProvider<P extends Provider> = StreamOptions.Model<P> &
+  StreamFunctions.Model<P>;
 
 const filters = {
   all: undefined,
@@ -125,3 +127,15 @@ export const getModelsByProvider = (filter: ProviderFilter = filterDefault) => {
     result[provider] = getModelsForProvider(provider, filter);
   return result;
 };
+
+export const getModelStream = <
+  P extends Provider,
+  M extends ModelForProvider<P>,
+>(
+  provider: P,
+  model: M,
+) =>
+  (getStreamFunction(provider, model) as typeof PI.stream).bind(
+    null,
+    PI.getModel(provider, model as any),
+  );
