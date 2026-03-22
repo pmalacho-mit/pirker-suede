@@ -54,3 +54,23 @@ export async function detectSupportedImageMimeTypeFromFile(
     await fileHandle.close();
   }
 }
+
+const MIME_TO_EXT: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "image/svg+xml": ".svg",
+  "image/bmp": ".bmp",
+  "image/tiff": ".tiff",
+};
+
+const EXT_TO_MIME: Record<string, string> = Object.fromEntries(
+  Object.entries(MIME_TO_EXT).map(([k, v]) => [v, k]),
+);
+
+export const mimeToExtension = (mimeType: string) =>
+  MIME_TO_EXT[mimeType] ?? ".bin";
+
+export const extensionToMime = (ext: string) =>
+  EXT_TO_MIME[ext] ?? "application/octet-stream";
