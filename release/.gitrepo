@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/pmalacho-mit/pirker-suede
 	branch = release
-	commit = 657ccd6d7ff2a512b2bacde015a6e8214c7bb1f7
-	parent = ba9e757b268961bfa4b65f6c16dd44c416ef1fc6
+	commit = c1a12634c5f26a29fd638ecb4dfaf386d90d1d77
+	parent = 1973af98eab599785eb1ad190b4800dfa96f2ef5
 	method = merge
 	cmdver = 0.4.9
