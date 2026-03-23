@@ -1,15 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import {
-  buildImage,
-  docker,
-  dockerExec,
-  ensureDocker,
-  inspectImage,
-  removeContainer,
-  runContainer,
-} from "@release/api/utils/docker";
+import { docker, image, container } from "@release/api/utils/docker";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(THIS_DIR, "../../..");
@@ -28,34 +20,36 @@ describe.sequential("docker browser control scripts", () => {
   let containerStarted = false;
 
   beforeAll(async () => {
-    dockerAvailable = await ensureDocker();
+    dockerAvailable = await docker.verify();
     if (!dockerAvailable) return;
 
     try {
       if (!process.env.FORCE_REBUILD) {
-        await inspectImage(IMAGE_TAG);
+        await image.inspect(IMAGE_TAG);
       } else {
         throw new Error("FORCE_REBUILD set");
       }
     } catch {
-      await buildImage(IMAGE_TAG, DOCKER_CONTEXT);
+      await image.build(IMAGE_TAG, DOCKER_CONTEXT);
     }
 
-    await runContainer({
+    await container.run({
       name: CONTAINER_NAME,
       image: IMAGE_TAG,
       command: ["tail", "-f", "/dev/null"],
     });
     containerStarted = true;
 
-    const started = await dockerExec(CONTAINER_NAME, ["/app/scripts/start.js"]);
+    const started = await docker.exec(CONTAINER_NAME, [
+      "/app/scripts/start.js",
+    ]);
     expect(started.stdout + started.stderr).toContain("Starting");
   }, 600_000);
 
   afterAll(async () => {
     if (!dockerAvailable || !containerStarted) return;
     try {
-      await removeContainer(CONTAINER_NAME);
+      await container.remove(CONTAINER_NAME);
     } catch {
       // Best-effort cleanup.
     }
@@ -64,14 +58,14 @@ describe.sequential("docker browser control scripts", () => {
   test("starts chromium and exposes CDP endpoint", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const version = await dockerExec(CONTAINER_NAME, [
+    const version = await docker.exec(CONTAINER_NAME, [
       "curl",
       "-fsS",
       "http://127.0.0.1:9222/json/version",
     ]);
     expect(version.stdout).toContain("webSocketDebuggerUrl");
 
-    const tabs = await dockerExec(CONTAINER_NAME, ["/app/scripts/tabs.js"]);
+    const tabs = await docker.exec(CONTAINER_NAME, ["/app/scripts/tabs.js"]);
     expect(tabs.stdout).toContain("tab(s)");
   });
 
@@ -110,13 +104,13 @@ describe.sequential("docker browser control scripts", () => {
 			</html>
 		`);
 
-    const nav = await dockerExec(CONTAINER_NAME, [
+    const nav = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/nav.js",
       pageUrl,
     ]);
     expect(nav.stdout).toContain("data:text/html");
 
-    const waited = await dockerExec(CONTAINER_NAME, [
+    const waited = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/wait.js",
       "#status[data-state='ready']",
       "--timeout",
@@ -124,26 +118,26 @@ describe.sequential("docker browser control scripts", () => {
     ]);
     expect(waited.stdout).toContain("Found");
 
-    const domOverview = await dockerExec(CONTAINER_NAME, [
+    const domOverview = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/dom.js",
     ]);
     expect(domOverview.stdout).toContain("Browser Toolkit E2E");
     expect(domOverview.stdout).toContain("Headings");
 
-    const domInputs = await dockerExec(CONTAINER_NAME, [
+    const domInputs = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/dom.js",
       "--inputs",
     ]);
     expect(domInputs.stdout).toContain("interactive element(s)");
     expect(domInputs.stdout).toContain("#q");
 
-    const domLinks = await dockerExec(CONTAINER_NAME, [
+    const domLinks = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/dom.js",
       "--links",
     ]);
     expect(domLinks.stdout).toContain("Docs");
 
-    const domText = await dockerExec(CONTAINER_NAME, [
+    const domText = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/dom.js",
       "--text",
       "#main",
@@ -154,7 +148,7 @@ describe.sequential("docker browser control scripts", () => {
   test("types text, clicks, evaluates JS, and captures screenshots", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const typed = await dockerExec(CONTAINER_NAME, [
+    const typed = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/type.js",
       "#q",
       "docker-e2e",
@@ -164,7 +158,7 @@ describe.sequential("docker browser control scripts", () => {
     expect(typed.stdout).toContain("Typed");
     expect(typed.stdout).toContain("Pressed Enter");
 
-    const clicked = await dockerExec(CONTAINER_NAME, [
+    const clicked = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/click.js",
       "#go",
       "--wait",
@@ -172,7 +166,7 @@ describe.sequential("docker browser control scripts", () => {
     ]);
     expect(clicked.stdout).toContain("Clicked at");
 
-    const waited = await dockerExec(CONTAINER_NAME, [
+    const waited = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/wait.js",
       "#status[data-state='clicked']",
       "--timeout",
@@ -180,20 +174,20 @@ describe.sequential("docker browser control scripts", () => {
     ]);
     expect(waited.stdout).toContain("Found");
 
-    const evalStatus = await dockerExec(CONTAINER_NAME, [
+    const evalStatus = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/eval.js",
       "document.querySelector('#status').textContent",
     ]);
     expect(evalStatus.stdout).toContain("clicked:docker-e2e");
 
-    const shot = await dockerExec(CONTAINER_NAME, [
+    const shot = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/screenshot.js",
       "--full",
     ]);
     const screenshotPath = shot.stdout.trim();
     expect(screenshotPath).toContain("/tmp/browser-logs/screenshots/");
 
-    const size = await dockerExec(CONTAINER_NAME, [
+    const size = await docker.exec(CONTAINER_NAME, [
       "bash",
       "-lc",
       `test -s ${screenshotPath} && echo OK`,
@@ -215,30 +209,30 @@ describe.sequential("docker browser control scripts", () => {
 
     await sleep(800);
 
-    await dockerExec(CONTAINER_NAME, [
+    await docker.exec(CONTAINER_NAME, [
       "/app/scripts/eval.js",
       "console.log('WATCH_E2E_MARKER')",
     ]);
-    await dockerExec(CONTAINER_NAME, [
+    await docker.exec(CONTAINER_NAME, [
       "/app/scripts/eval.js",
       "fetch('http://127.0.0.1:1/boom').catch(() => 'failed')",
     ]);
 
     await sleep(1200);
 
-    const tailed = await dockerExec(CONTAINER_NAME, [
+    const tailed = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/logs-tail.js",
       "--kind",
       "console",
     ]);
     expect(tailed.stdout).toContain("WATCH_E2E_MARKER");
 
-    const summary = await dockerExec(CONTAINER_NAME, [
+    const summary = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/net-summary.js",
     ]);
     expect(summary.stdout).toContain("Network Summary");
 
-    const errors = await dockerExec(CONTAINER_NAME, [
+    const errors = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/net-summary.js",
       "--errors",
     ]);
@@ -248,7 +242,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for dom.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/dom.js",
       "--help",
     ]);
@@ -261,7 +255,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for nav.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/nav.js",
       "--help",
     ]);
@@ -272,7 +266,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for eval.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/eval.js",
       "--help",
     ]);
@@ -284,7 +278,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for click.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/click.js",
       "--help",
     ]);
@@ -296,7 +290,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for type.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/type.js",
       "--help",
     ]);
@@ -308,7 +302,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for wait.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/wait.js",
       "--help",
     ]);
@@ -320,7 +314,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for screenshot.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/screenshot.js",
       "--help",
     ]);
@@ -332,7 +326,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for start.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/start.js",
       "--help",
     ]);
@@ -344,7 +338,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for tabs.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/tabs.js",
       "--help",
     ]);
@@ -356,7 +350,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for watch.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/watch.js",
       "--help",
     ]);
@@ -368,7 +362,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for logs-tail.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/logs-tail.js",
       "--help",
     ]);
@@ -380,7 +374,7 @@ describe.sequential("docker browser control scripts", () => {
   test("--help flag prints usage for net-summary.js", async (context) => {
     if (!dockerAvailable) context.skip();
 
-    const result = await dockerExec(CONTAINER_NAME, [
+    const result = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/net-summary.js",
       "--help",
     ]);

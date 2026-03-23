@@ -4,14 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { getDevcontainerId } from "@release/api/utils/devcontainer";
-import {
-  buildImage,
-  ensureDocker,
-  inspectImage,
-  runContainer,
-  removeContainer,
-  dockerExec,
-} from "@release/api/utils/docker";
+import { docker, container, image } from "@release/api/utils/docker";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(THIS_DIR, "../../..");
@@ -55,14 +48,14 @@ describe.sequential("docker browser + explicit vite app", () => {
   let viteLogs = "";
 
   beforeAll(async () => {
-    dockerAvailable = await ensureDocker();
+    dockerAvailable = await docker.verify();
     if (!dockerAvailable) return;
 
     try {
-      if (!process.env.FORCE_REBUILD) await inspectImage(IMAGE_TAG);
+      if (!process.env.FORCE_REBUILD) await image.inspect(IMAGE_TAG);
       else throw new Error("FORCE_REBUILD set");
     } catch {
-      await buildImage(IMAGE_TAG, DOCKER_CONTEXT);
+      await image.build(IMAGE_TAG, DOCKER_CONTEXT);
     }
 
     devcontainerId = await getDevcontainerId();
@@ -96,7 +89,7 @@ describe.sequential("docker browser + explicit vite app", () => {
       throw new Error(`Vite failed to start: ${message}\n${viteLogs}`);
     }
 
-    await runContainer({
+    await container.run({
       name: CONTAINER_NAME,
       image: IMAGE_TAG,
       network: `container:${devcontainerId}`,
@@ -104,7 +97,9 @@ describe.sequential("docker browser + explicit vite app", () => {
     });
     containerStarted = true;
 
-    const started = await dockerExec(CONTAINER_NAME, ["/app/scripts/start.js"]);
+    const started = await docker.exec(CONTAINER_NAME, [
+      "/app/scripts/start.js",
+    ]);
     expect(started.stdout + started.stderr).toContain("Starting");
   }, 600_000);
 
@@ -118,7 +113,7 @@ describe.sequential("docker browser + explicit vite app", () => {
 
     if (!dockerAvailable || !containerStarted) return;
     try {
-      await removeContainer(CONTAINER_NAME);
+      await container.remove(CONTAINER_NAME);
     } catch {
       // Best-effort cleanup.
     }
@@ -129,13 +124,13 @@ describe.sequential("docker browser + explicit vite app", () => {
 
     const appUrl = `http://127.0.0.1:${VITE_PORT}`;
 
-    const nav = await dockerExec(CONTAINER_NAME, [
+    const nav = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/nav.js",
       appUrl,
     ]);
     expect(nav.stdout).toContain(appUrl);
 
-    const waited = await dockerExec(CONTAINER_NAME, [
+    const waited = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/wait.js",
       "#vite-ready",
       "--timeout",
@@ -143,16 +138,16 @@ describe.sequential("docker browser + explicit vite app", () => {
     ]);
     expect(waited.stdout).toContain("Found");
 
-    const dom = await dockerExec(CONTAINER_NAME, ["/app/scripts/dom.js"]);
+    const dom = await docker.exec(CONTAINER_NAME, ["/app/scripts/dom.js"]);
     expect(dom.stdout).toContain("Vite Browser Test");
 
-    const text = await dockerExec(CONTAINER_NAME, [
+    const text = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/eval.js",
       "document.querySelector('#vite-ready').textContent",
     ]);
     expect(text.stdout).toContain("hello-from-vite");
 
-    const port = await dockerExec(CONTAINER_NAME, [
+    const port = await docker.exec(CONTAINER_NAME, [
       "/app/scripts/eval.js",
       "document.querySelector('#vite-port').textContent",
     ]);

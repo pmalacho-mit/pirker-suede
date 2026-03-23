@@ -66,6 +66,11 @@ export {
   type WriteToolInput,
   type WriteToolOptions,
 } from "./write.js";
+export {
+  createBrowserTool,
+  type BrowserToolInput,
+  type BrowserToolOptions,
+} from "./browser.js";
 
 import type { AgentTool } from "../agent/types.js";
 import { type BashToolOptions, createBashTool } from "./bash.js";
@@ -76,6 +81,7 @@ import { createGrepTool } from "./grep.js";
 import { createLsTool } from "./ls.js";
 import { createReadTool, type ReadToolOptions } from "./read.js";
 import { createWriteTool } from "./write.js";
+import { createBrowserTool, type BrowserToolOptions } from "./browser.js";
 
 /** Tool type (AgentTool from pi-ai) */
 export type Tool = AgentTool<any>;
@@ -85,6 +91,8 @@ export interface ToolsOptions {
   read?: ReadToolOptions;
   /** Options for the bash tool */
   bash?: BashToolOptions;
+  /** Options for the browser tool */
+  browser?: BrowserToolOptions;
 }
 
 /**
@@ -94,6 +102,7 @@ export function createCodingTools(cwd: string, options?: ToolsOptions): Tool[] {
   return [
     createReadTool(cwd, options?.read),
     createBashTool(cwd, options?.bash),
+    createBrowserTool(cwd, options?.browser),
     createEditTool(cwd),
     createWriteTool(cwd),
     createCommitTool(cwd),
@@ -121,6 +130,7 @@ export function createReadOnlyTools(
 export const createAllTools = (cwd: string, options?: ToolsOptions) => ({
   read: createReadTool(cwd, options?.read),
   bash: createBashTool(cwd, options?.bash),
+  browser: createBrowserTool(cwd, options?.browser),
   edit: createEditTool(cwd),
   write: createWriteTool(cwd),
   commit: createCommitTool(cwd),
