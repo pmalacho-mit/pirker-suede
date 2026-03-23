@@ -4,15 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Static, Type } from "@sinclair/typebox";
 import type { AgentTool } from "../agent/types.js";
-import {
-  buildImage,
-  inspectContainer,
-  inspectContainerRunning,
-  inspectImage,
-  removeContainer,
-  runContainer,
-  startContainer,
-} from "../../utils/docker.js";
+import { image, container } from "../../utils/docker.js";
 
 const browserSchema = Type.Object({
   restart: Type.Optional(
@@ -67,7 +59,7 @@ function readScriptDocs(docsDir: string): string {
 
 async function containerExists(name: string): Promise<boolean> {
   try {
-    await inspectContainer(name);
+    await container.inspect(name);
     return true;
   } catch {
     return false;
@@ -76,17 +68,17 @@ async function containerExists(name: string): Promise<boolean> {
 
 async function containerIsRunning(name: string): Promise<boolean> {
   try {
-    return await inspectContainerRunning(name);
+    return await container.isRunning(name);
   } catch {
     return false;
   }
 }
 
-async function ensureBrowserImage(image: string, browserDir: string) {
+async function ensureBrowserImage(name: string, browserDir: string) {
   try {
-    await inspectImage(image);
+    await image.inspect(name);
   } catch {
-    await buildImage(image, browserDir);
+    await image.build(name, browserDir);
   }
 }
 
@@ -106,17 +98,13 @@ async function ensureContainerState({
   const exists = await containerExists(name);
 
   if (stop) {
-    if (exists) {
-      await removeContainer(name, true);
-    }
+    if (exists) await container.remove(name, true);
     return "stopped";
   }
 
   if (restart) {
-    if (exists) {
-      await removeContainer(name, true);
-    }
-    await runContainer({
+    if (exists) await container.remove(name, true);
+    await container.run({
       name,
       image,
       command: ["tail", "-f", "/dev/null"],
@@ -127,7 +115,7 @@ async function ensureContainerState({
   }
 
   if (!exists) {
-    await runContainer({
+    await container.run({
       name,
       image,
       command: ["tail", "-f", "/dev/null"],
@@ -137,11 +125,9 @@ async function ensureContainerState({
     return "started";
   }
 
-  if (await containerIsRunning(name)) {
-    return "already-running";
-  }
+  if (await containerIsRunning(name)) return "already-running";
 
-  await startContainer(name);
+  await container.start(name);
   return "started";
 }
 
