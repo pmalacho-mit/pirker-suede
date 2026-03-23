@@ -6,12 +6,13 @@ import { writeUtf8IfMissing } from "../utils/fs";
 import { addFileToArchive } from "../utils/zip";
 import type { Message, TextContent } from "@mariozechner/pi-ai";
 
-const CONSTANTS = {
+export const CONSTANTS = {
   /** Number of digits used when zero-padding turn indices.
    *  4 digits → 0000–9999, which is plenty for any conversation and ensures
    *  that alphabetical sort === chronological sort (e.g. "0009" < "0010"). */
   TURN_INDEX_PAD: 4,
   SESSIONS_DIR: ".sessions",
+  SYSTEM_PROMPT_FILENAME: "system.md",
   FILE_CONTENT: {
     GITIGNORE: `# Ignore everything inside session subfolders
 */*
@@ -80,6 +81,12 @@ export const sessionMetadataPath = (
   branchRoot: string,
   sessionId: string,
 ): string => path.join(sessionsRoot(branchRoot), `${sessionId}.json`);
+
+/** Path to the session's system prompt file. */
+export const sessionSystemPromptPath = (
+  branchRoot: string,
+  sessionId: string,
+): string => path.join(sessionDir(branchRoot, sessionId), "system.md");
 
 /**
  * Ensures that the `.sessions` directory exists at the given branch root,

@@ -1,8 +1,5 @@
 import * as path from "node:path";
-import { execFile } from "child_process";
-import { promisify } from "util";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "./exec.js";
 
 /**
  * NOTE: Uses the directory of the zip file as the working directory when adding entries,
