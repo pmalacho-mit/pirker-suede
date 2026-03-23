@@ -21,7 +21,7 @@ import {
 } from "../sessions";
 import { ensureWorktreeContainer, worktreePath } from "./common";
 import { WithEvents } from "../../suede/with-events-suede";
-import type { AgentEvent, AgentTool } from "../ai/agent/types";
+import type { AgentEvent, AgentMessage, AgentTool } from "../ai/agent/types";
 import { agentLoop, type LoopPayload } from "../ai/agent/loop";
 import type { ResolvedStream } from "../ai/models";
 
@@ -240,7 +240,7 @@ class Automaton extends WithEvents<{
     return session;
   }
 
-  start() {
+  start(prompts?: AgentMessage[]) {
     if (!this.session) throw new Error("Automaton not initialized.");
     if (!readyToStart(this.loopPayload))
       throw new Error(
@@ -248,6 +248,7 @@ class Automaton extends WithEvents<{
           this.loopPayload,
         )}`,
       );
+    if (prompts) this.loopPayload.context.messages.push(...prompts);
     const eventStream = agentLoop(this.loopPayload);
     this.handleEventStream(eventStream);
     return eventStream;
