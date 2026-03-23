@@ -1,0 +1,10 @@
+{
+  "name": "browser-control",
+  "version": "1.0.0",
+  "description": "Headless Chromium CDP control plane",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "chrome-remote-interface": "^0.33.2"
+  }
+}
