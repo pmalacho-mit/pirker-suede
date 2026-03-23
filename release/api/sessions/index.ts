@@ -7,6 +7,7 @@ import type {
   ToolResultMessage,
 } from "@mariozechner/pi-ai";
 import {
+  CONSTANTS,
   createSessionArchive,
   ensureSessionsDirectory,
   extractUserTextPreview,
@@ -16,10 +17,11 @@ import {
   sessionDir,
   sessionMetadataPath,
   sessionsRoot,
+  sessionSystemPromptPath,
   sessionZipPath,
 } from "./common";
 import { deserialize, serialize } from "./serialization";
-import { readJson, writeFileEntry, writeJson } from "../utils/fs";
+import { readJson, readUtf8, writeFileEntry, writeJson } from "../utils/fs";
 import { addFileToArchive, extractArchive } from "../utils/zip";
 
 export namespace Session {
@@ -46,6 +48,7 @@ export namespace Session {
     nextTurnIndex: number;
     /** In-memory copy of the metadata (kept in sync with disk). */
     metadata: Metadata;
+    systemPrompt?: string;
   }
 
   export interface CreateOpts {
@@ -55,6 +58,7 @@ export namespace Session {
     /** ← EXTERNAL: HEAD commit hash at time of creation */
     commitAtCreation: string;
     parent?: ParentReference;
+    systemPrompt?: string;
   }
 }
 
@@ -96,6 +100,20 @@ export namespace Meta {
 
   export type Turn = User | Assistant | ToolResult;
 }
+
+/** Read the session's system prompt, or null if none was set. */
+export async function getSystemPrompt(
+  handle: Session.Handle,
+): Promise<string | undefined> {
+  try {
+    return await readUtf8(
+      sessionSystemPromptPath(handle.branchRoot, handle.id),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Load every message in a session directory, reconstructing full `Message`
  * objects sorted by turn index.
@@ -151,8 +169,11 @@ export async function createSession(
   const { branchRoot, branch, commitAtCreation, parent } = opts;
 
   await ensureSessionsDirectory(branchRoot);
+
   const id = generateSessionId();
-  await fs.mkdir(sessionDir(branchRoot, id), { recursive: true });
+  const dir = sessionDir(branchRoot, id);
+
+  await fs.mkdir(dir, { recursive: true });
   await createSessionArchive(branchRoot, id);
 
   const metadata: Session.Metadata = {
@@ -165,6 +186,17 @@ export async function createSession(
   };
 
   await writeJson(sessionMetadataPath(branchRoot, id), metadata);
+
+  if (opts.systemPrompt) {
+    await writeFileEntry(dir, {
+      filename: CONSTANTS.SYSTEM_PROMPT_FILENAME,
+      content: opts.systemPrompt,
+    });
+    await addFileToArchive(
+      sessionZipPath(branchRoot, id),
+      path.join(id, CONSTANTS.SYSTEM_PROMPT_FILENAME),
+    );
+  }
 
   return { id, branchRoot, nextTurnIndex: 0, metadata };
 }
@@ -179,7 +211,14 @@ export async function loadSession(
   const nextTurnIndex = await getNextTurnIndex(
     sessionDir(branchRoot, sessionId),
   );
-  return { id: sessionId, branchRoot, nextTurnIndex, metadata };
+  const handle: Session.Handle = {
+    id: sessionId,
+    branchRoot,
+    nextTurnIndex,
+    metadata,
+  };
+  handle.systemPrompt = await getSystemPrompt(handle);
+  return handle;
 }
 
 /**
@@ -230,9 +269,6 @@ export async function addMessage(
     handle.metadata,
   );
 
-  // 5. Advance turn counter
-  handle.nextTurnIndex = turnIndex + 1;
-
   return fileEntries.map((e) => e.filename);
 }
 
@@ -254,6 +290,7 @@ export async function copySession({
     parent: { sessionId: source.id, reason: "copy" },
   });
 
+  handle.systemPrompt = await getSystemPrompt(source);
   const messages = await getSessionHistory(source);
   for (const msg of messages) await addMessage(handle, msg);
 

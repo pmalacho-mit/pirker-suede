@@ -26,9 +26,7 @@
         },
         "editor.formatOnSave": true,
         "editor.tabSize": 2,
-        "svelte.enable-ts-plugin": true,
-        "ts.tsserver.log": "verbose",
-        "ts.tsserver.tracing.enable": true
+        "svelte.enable-ts-plugin": true
       }
     },
     "pmalacho-mit/devcontainers": {
@@ -36,6 +34,7 @@
     }
   },
   "features": {
+    "ghcr.io/devcontainers/features/git-lfs:1": {},
     "ghcr.io/devcontainers/features/node:latest": {
       "version": "20"
     },

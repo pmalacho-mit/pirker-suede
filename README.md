@@ -54,7 +54,18 @@ When continuing a session, the session's message history must be loaded and prov
 
 ## Automata
 
-Automata are directly tied to the git branch they are created for. When creating an automaton, a branch must be specified. This branch will be checked-out as a worktree within the current repository (worktrees will be stored at `.worktrees/<branch-name>`), and the automaton will operate within that worktree, meaning that all sessions created by the automaton will be stored within that branch's `.sessions` directory at the root of their worktree, and all file operations the automaton performs will be performed within that branch's worktree. A branch to checkout from can also be specified (e.g. the optional last parameter to `git worktree add`), and if not we fall back to the behavior of `git worktree add`.
+Automata are directly tied to the git branch they are created for. When creating an automaton, a branch must be specified. This branch will be checked-out as a worktree within the current repository (worktrees will be stored at `.worktrees/<branch-name>`), and the automaton will operate within that worktree, meaning that all sessions created by the automaton will be stored within that branch's `.sessions` directory at the root of their worktree, and all file operations the automaton performs will be performed within that branch's worktree. There are effectively to workflows when specifying this branch depending on if it already exists or not:
+
+- branch does NOT exist:
+  - A branch to checkout from can also be specified (e.g. the optional last parameter to `git worktree add`), and if not we fall back to the behavior of `git worktree add`.
+- branch DOES exist:
+  - When specifying a branch for the automaton, if the branch already exists, the user should be notified with an "Are you sure?" type message.
+
+Once an automaton's branch is created, a session can be chosen, one of the following:
+
+- creating a 'fresh' session, which will just be a new session with no messages in it
+- copying an existing session, which will create a new session with the same messages as the existing session (this will be done by copying the messages over to a new session folder and zip file, and including a reference to the 'parent' session in the new session's metadata with a reason of 'copy')
+- compacting an existing session, which will create a new session with a summarized version of the messages in the existing session (this will be done by summarizing the messages and including the summary as a system prompt in the new session, and including a reference to the 'parent' session in the new session's metadata with a reason of 'compaction')
 
 An automaton is defined by the following static and dynamic properties:
 
@@ -72,14 +83,6 @@ Automata at any moment have the following (dynamic, meaning it can be changed) c
 - model (which will be used for all LLM calls the automata makes, and will be included in the naming of assistant messages in the session)
 - session (which will be the active session that the automata is using to log its message history)
 - tools
-
-When creating an automata, the user has the option to specify a session to use, by either:
-
-- creating a 'fresh' session, which will just be a new session with no messages in it
-- copying an existing session, which will create a new session with the same messages as the existing session (this will be done by copying the messages over to a new session folder and zip file, and including a reference to the 'parent' session in the new session's metadata with a reason of 'copy')
-- compacting an existing session, which will create a new session with a summarized version of the messages in the existing session (this will be done by summarizing the messages and including the summary as a system prompt in the new session, and including a reference to the 'parent' session in the new session's metadata with a reason of 'compaction')
-
-At creation time, the automata will also be provided a series of 'skills' that can be leveraged (similiar to CLAUDE skills, this will live in a `.skills` folder at the root of the repository).
 
 An automata can 'finish' when it has no more actions to take, and the user sends no follow-up messages. At this point the user (or the automata's manager, which could be another automata) can determine what to do. Either:
 
