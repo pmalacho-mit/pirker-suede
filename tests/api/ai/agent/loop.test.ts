@@ -3,7 +3,6 @@ import { agentLoop } from "@release/api/ai/agent/loop.js";
 import { getModelStream } from "@release/api/ai/models";
 import { user } from "@release/api/ai/agent";
 import type { AgentEvent } from "@release/api/ai/agent/types";
-import "@release/node_modules/dotenv/config";
 
 const onEvent = (event: AgentEvent): true => {
   switch (event.type) {

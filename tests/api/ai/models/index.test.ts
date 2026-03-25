@@ -4,7 +4,7 @@ import {
   stream,
   streamAnthropic,
   streamOpenAIResponses,
-} from "@release/node_modules/@mariozechner/pi-ai";
+} from "@mariozechner/pi-ai";
 import {
   getStreamFunction,
   getStreamOptionsSchema,
