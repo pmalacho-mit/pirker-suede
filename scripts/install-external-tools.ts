@@ -1,4 +1,4 @@
-import { ensureTool, TOOLS } from "../index.js";
+import { ensureTool, TOOLS } from "../api/ai/tools/external/index.js";
 
 const EXTERNAL_TOOLS = Object.keys(TOOLS) as (keyof typeof TOOLS)[];
 
@@ -24,7 +24,9 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   console.error(
-    `[install] failed: ${error instanceof Error ? error.message : String(error)}`,
+    `[install] failed: ${
+      error instanceof Error ? error.message : String(error)
+    }`,
   );
   process.exitCode = 1;
 });
