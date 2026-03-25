@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "source:env": "set -a && . ../.env && set +a",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "codegen": "npx tsx scripts/generate-model-details.ts --input ./api/ai/models/streams.d.ts --output ./api/ai/models/streams.generated.ts --type StreamOptionsByProviderAndModel --type StreamFunctionByProviderAndModel"
@@ -17,7 +18,8 @@
     "svelte": "^5.53.12",
     "svelte-check": "^4.4.5",
     "typescript": "~5.9.3",
-    "vite": "^8.0.1"
+    "vite": "^8.0.1",
+    "vitest": "^4.1.1"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
@@ -29,7 +31,6 @@
     "@tailwindcss/vite": "^4.2.2",
     "chalk": "^5.6.2",
     "diff": "^8.0.3",
-    "dotenv": "^17.3.1",
     "extract-zip": "^2.0.1",
     "file-type": "^21.3.3",
     "glob": "^13.0.6",

@@ -174,13 +174,15 @@ Sessions are identified by a GUID composed of a random robot name (from [`./rele
 
 On first session creation, the following files are written to `.sessions/` if they don't already exist:
 
-**`.gitignore`** — ignores all files inside session subfolders while preserving `.zip` and `.json` files that are immediate children of `.sessions/`:
+**`.gitignore`** — ignores everything in `.sessions/` by default, while preserving only direct-child config files and session archive/metadata files:
 
 ```gitignore
-# Ignore everything inside session subfolders
-*/*
+# Ignore everything in .sessions by default
+*
 
-# But keep zip archives and JSON metadata that are direct children
+# Keep only direct-child metadata/config artifacts
+!.gitignore
+!.gitattributes
 !*.zip
 !*.json
 ```
