@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-RELEASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+RELEASE_SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+RELEASE_DIR="$RELEASE_SCRIPTS_DIR/.."
 INSTALL_EXTERNAL_TOOLS_SCRIPT="$RELEASE_DIR/scripts/install-external-tools.ts"
 FILE_ACCESS_GUARD_SCRIPT="$RELEASE_DIR/scripts/utils/file-access-guard.sh"
 ENV_FILE="${ENV_FILE:-"$RELEASE_DIR/../.env"}"

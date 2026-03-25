@@ -143,11 +143,11 @@ echo "[file-access-guard] Startup grace: $STARTUP_EVENTS event(s) per file, then
 # Per-file grace: allow first N events on each file.
 # After a file is armed:
 #   ACCESS → kill immediately (unauthorized read)
-#   OPEN   → wait 0.5s for ACCESS to follow:
+#   OPEN   → wait 0.25s for ACCESS to follow:
 #            - ACCESS arrives → kill (unauthorized read)
 #            - timeout        → kill (mmap bypass detected)
 #
-# The 0.5s wait is NOT a security window — both paths end in death.
+# The 0.25s wait is NOT a security window — both paths end in death.
 # It exists only to distinguish the attack type in logs.
 
 kill_child() {
@@ -212,7 +212,7 @@ inotifywait -m -q -e access -e open "${GUARDED_FILES[@]}" 2>/dev/null | {
         ;;
       *OPEN*)
         # Open without access yet — wait briefly for access to follow
-        if read -t 0.5 -r _d2 events2 _f2; then
+        if read -t 0.25 -r _d2 events2 _f2; then
           kill_child "UNAUTHORIZED READ (open + read syscall)" "$filepath"
         else
           kill_child "UNAUTHORIZED MMAP BYPASS (open without read)" "$filepath"

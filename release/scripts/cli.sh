@@ -1,4 +1,4 @@
-RELEASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+RELEASE_DIR="$(cd "$(dirname "$0")" && pwd)/.."
 export ENV_FILE="${ENV_FILE:-"$RELEASE_DIR/../.env"}"
 
 # Load secrets into environment BEFORE the guard starts
