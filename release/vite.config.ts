@@ -5,11 +5,10 @@ import { defaults, parsePort } from "./globals";
 
 // https://vite.dev/config/
 export default defineConfig({
-  root: "ui",
   plugins: [svelte(), tailwindcss()],
   server: {
     port: parsePort(process.env.WEB_PORT, defaults.ports.web),
-    host: "0.0.0.0",
+    host: true,
     proxy: {
       "/api": {
         target: `http://localhost:${parsePort(
