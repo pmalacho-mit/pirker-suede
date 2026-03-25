@@ -1,0 +1,8 @@
+# Ignore everything in .sessions by default
+*
+
+# Keep only direct-child metadata/config artifacts
+!.gitignore
+!.gitattributes
+!*.zip
+!*.json
