@@ -1,3 +1,20 @@
 {
-  "dependencies": {}
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@hono/typebox-validator": "^1.1.0",
+    "@mariozechner/pi-ai": "^0.60.0",
+    "@silvia-odwyer/photon-node": "^0.3.4",
+    "@sinclair/typebox": "^0.34.48",
+    "@sinclair/typebox-codegen": "^0.11.1",
+    "@tailwindcss/vite": "^4.2.2",
+    "chalk": "^5.6.2",
+    "diff": "^8.0.3",
+    "extract-zip": "^2.0.1",
+    "file-type": "^21.3.3",
+    "glob": "^13.0.6",
+    "hono": "^4.12.8",
+    "nanoid": "^5.1.7",
+    "tailwindcss": "^4.2.2",
+    "ts-morph": "^27.0.2"
+  }
 }
