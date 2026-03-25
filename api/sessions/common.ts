@@ -13,18 +13,18 @@ export const CONSTANTS = {
   TURN_INDEX_PAD: 4,
   SESSIONS_DIR: ".sessions",
   SYSTEM_PROMPT_FILENAME: "system.md",
-  FILE_CONTENT: {
-    GITIGNORE: `# Ignore everything inside session subfolders
-*/*
+  GITIGNORE: `# Ignore everything in .sessions by default
+*
 
-# But keep zip archives and JSON metadata that are direct children
+# Keep only direct-child metadata/config artifacts
+!.gitignore
+!.gitattributes
 !*.zip
 !*.json
 `,
-    GITATTRIBUTES: `# Track zip files with git-lfs
+  GITATTRIBUTES: `# Track zip files with git-lfs
 *.zip filter=lfs diff=lfs merge=lfs -text
 `,
-  },
 } as const;
 
 /**
@@ -100,11 +100,11 @@ export async function ensureSessionsDirectory(
   await fs.mkdir(dir, { recursive: true });
   await writeUtf8IfMissing(
     { dir, filename: ".gitignore" },
-    CONSTANTS.FILE_CONTENT.GITIGNORE,
+    CONSTANTS.GITIGNORE,
   );
   await writeUtf8IfMissing(
     { dir, filename: ".gitattributes" },
-    CONSTANTS.FILE_CONTENT.GITATTRIBUTES,
+    CONSTANTS.GITATTRIBUTES,
   );
 }
 

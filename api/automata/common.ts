@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 
 const CONSTANTS = {
   WORKTREE_DIR: ".worktrees",
+  GITIGNORE: `*`,
 };
 
 /**
@@ -13,7 +14,8 @@ const CONSTANTS = {
 export const worktreePath = (repoRoot: string, branch: string): string =>
   path.join(repoRoot, CONSTANTS.WORKTREE_DIR, branch.replace(/\//g, "--"));
 
-export const ensureWorktreeContainer = async (repoRoot: string) =>
-  await fs.mkdir(path.join(repoRoot, CONSTANTS.WORKTREE_DIR), {
-    recursive: true,
-  });
+export const ensureWorktreeContainer = async (repoRoot: string) => {
+  const dir = path.join(repoRoot, CONSTANTS.WORKTREE_DIR);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, ".gitignore"), CONSTANTS.GITIGNORE);
+};

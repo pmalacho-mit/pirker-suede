@@ -414,3 +414,5 @@ class Automaton extends WithEvents<{
     return new Automaton({ branch, root: wt.path });
   }
 }
+
+export { Automaton };
