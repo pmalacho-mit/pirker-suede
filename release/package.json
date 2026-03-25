@@ -12,7 +12,9 @@
     "codegen": "npx tsx scripts/generate-model-details.ts --input ./api/ai/models/streams.d.ts --output ./api/ai/models/streams.generated.ts --type StreamOptionsByProviderAndModel --type StreamFunctionByProviderAndModel"
   },
   "devDependencies": {
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.1",
+    "@storybook/test": "^8.6.14",
+    "html-to-image": "^1.11.13"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",

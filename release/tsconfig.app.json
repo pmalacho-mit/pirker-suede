@@ -17,5 +17,15 @@
     "checkJs": true,
     "moduleDetection": "force"
   },
-  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+  "include": [
+    "ui/**/*.ts",
+    "ui/**/*.js",
+    "ui/**/*.svelte",
+    "suede/**/*.ts",
+    "suede/**/*.js",
+    "suede/**/*.svelte",
+    "api/**/*.ts",
+    "api/**/*.js",
+    "api/**/*.svelte"
+  ]
 }
