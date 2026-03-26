@@ -5,7 +5,7 @@ import { defaults, parsePort } from "./globals";
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [svelte(), tailwindcss()],
+  plugins: [tailwindcss(), svelte()],
   server: {
     port: parsePort(process.env.WEB_PORT, defaults.ports.web),
     host: true,
