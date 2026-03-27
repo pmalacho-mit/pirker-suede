@@ -7,7 +7,7 @@
     messages = $state<MessageModel[]>([]);
 
     constructor(
-      initial?: Partial<{ input: InputModel; messages: MessageModel[] }>
+      initial?: Partial<{ input: InputModel; messages: MessageModel[] }>,
     ) {
       this.input = initial?.input ?? new InputModel({ mode: "send" });
       if (initial?.messages) this.messages.push(...initial.messages);
@@ -44,7 +44,7 @@
   style:padding-right="2px"
 >
   <div
-    class="flex-grow max-h-full overflow-y-scroll bg-white rounded-b-lg border-none"
+    class="grow max-h-full overflow-y-scroll bg-white rounded-b-lg border-none"
     bind:this={container}
   >
     {#each model.messages as message}

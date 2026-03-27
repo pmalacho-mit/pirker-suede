@@ -28,7 +28,10 @@
         "editor.formatOnSave": true,
         "editor.tabSize": 2,
         "svelte.enable-ts-plugin": true,
-        "workbench.colorTheme": "Dark Modern"
+        "workbench.colorTheme": "Dark Modern",
+        "tailwindCSS.experimental.classRegex": [
+          ["\\/\\*\\s?tw:\\s?\\*\\/\\s?['\"`]([^'\"`]*)['\"`]"]
+        ]
       }
     },
     "pmalacho-mit/devcontainers": {

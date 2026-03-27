@@ -70,14 +70,15 @@
     }
 
     removeAttachmentIndicator(key: string, skipUnsubscribe = false) {
-      if (!skipUnsubscribe)
-        this.attachmentIndicators.get(key)?.unsubscribeAll();
+      if (!skipUnsubscribe) this.attachmentIndicators.get(key)?.clear();
       (this.attachmentIndicators as SvelteMap<string, any>).delete(key);
     }
   }
 </script>
 
 <script lang="ts">
+  import Button from "../styled/Button.svelte";
+
   type Props = {
     model: Model;
   };
@@ -117,16 +118,12 @@
 </script>
 
 <div>
-  {#if model.above.current}
-    {#each model.above.current as renderable}
-      <SnippetRenderer {...renderable} />
-    {/each}
-  {/if}
+  {@render renderer(model.above)}
   <div class="w-full px-2 pt-2">
     <div class="flex flex-col">
       <div class="join join-vertical bg-white rounded-t-lg rounded-b-lg">
         <div class="w-full flex flex-row relative join-item">
-          <div class="flex-1 h-full relative border-none">
+          <div class="flex-1 flex h-full relative border-none">
             {@render textArea(
               content,
               model,
@@ -135,7 +132,7 @@
               model.inputOverlay,
             )}
           </div>
-          <div class="absolute bottom-4 right-2 h-13">
+          <div class="absolute right-0 flex h-full">
             {#if model.mode === mode.send}
               {@render sendButton(send, sendDisabled)}
             {:else}
@@ -173,14 +170,14 @@
   provider: { placeholder: string },
   onkeydown: KeyboardEventHandler<HTMLTextAreaElement>,
   disabled: boolean,
-  overlay: OptionalRenderable,
+  overlay: renderable.Returns<"single", "optional">,
 )}
   <textarea
     {onkeydown}
     {disabled}
     bind:value={state.value}
     use:textAreaUtility.resetOnContentClear={state}
-    class="textarea pr-12 w-full overflow-y-hidden border-none resize-none rounded-t-lg text-neutral-dark"
+    class="textarea pr-12 pl-1 w-full overflow-y-hidden border-none resize-none rounded-lg text-neutral-dark"
     placeholder={provider.placeholder}
     oninput={textAreaUtility.growOnInput}
   >
@@ -195,37 +192,31 @@
         class="bg-yellow-200 p-2 rounded-lg shadow-md z-50"
         style:max-width="90%"
       >
-        <SnippetRenderer {...overlay.current} />
+        {@render renderer(overlay)}
       </div>
     </div>
   {/if}
 {/snippet}
 
 {#snippet sendButton(onclick: () => void, disabled: boolean)}
-  <button class="btn btn-primary h-full p-0 bg-primary" {disabled} {onclick}>
+  <Button class="h-full p-0 grow" primary {disabled} {onclick}>
     <center class="m-auto mr-2">
-      <PaperAirplane />
+      {@render paperAirplane()}
     </center>
-  </button>
+  </Button>
 {/snippet}
 
 {#snippet cancelButton(onclick: () => void)}
-  <button
-    class="btn btn-primary h-full p-0"
+  <Button
+    class="h-full p-0 bg-pink-300 border-pink-300 hover:bg-pink-400"
     {onclick}
-    style:background-color={color.accent.pink}
-    style:border-color={color.accent.pink}
   >
     <center class="m-auto text-white px-1">
-      <div
-        class="btn-circle w-8 h-8 fill-primary"
-        style:background="rgba(255, 255, 255, 0.8)"
-        style:fill={color.accent.pink}
-      >
-        <X width="2rem" height="2rem" />
-      </div>
+      <Button circle class="w-8 h-8  fill-pink-300 bg-pink-200 hover:bg-white">
+        {@render x({ width: "2rem", height: "2rem" })}
+      </Button>
     </center>
-  </button>
+  </Button>
 {/snippet}
 
 {#snippet instructions()}

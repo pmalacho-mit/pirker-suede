@@ -1,10 +1,13 @@
 <script lang="ts" module>
-  import type { TestHarness, PocketElements } from "$dependencies/sweater-vest";
+  import type {
+    TestHarness,
+    PocketElements,
+  } from "../../suede/sweater-vest-suede";
   import { tick } from "svelte";
 
   async function elements<T extends PocketElements>(
     { container, findByRole }: TestHarness<T>,
-    doTick: boolean = true
+    doTick: boolean = true,
   ) {
     if (doTick) await tick();
 
@@ -23,12 +26,12 @@
         renderables: (render) => ({
           label: render(dummyAttachmentIndicator, text),
         }),
-      })
+      }),
     );
 </script>
 
 <script lang="ts">
-  import { Sweater } from "$dependencies/sweater-vest";
+  import { Sweater } from "../../suede/sweater-vest-suede";
   import Input, { Model as InputModel } from "./Input.svelte";
   import { Model as AttachmentIndicatorModel } from "./AttachmentIndicator.svelte";
   import {
@@ -39,14 +42,18 @@
 
 <Sweater config category="modes">
   <Sweater
-    body={async ({ set }) => set({ model: new InputModel({ mode: "send" }) })}
+    body={async ({ set }) => {
+      set({ model: new InputModel({ mode: "send" }) });
+    }}
   >
     {#snippet vest({ model }: { model: InputModel })}
       <Input {model} />
     {/snippet}
   </Sweater>
   <Sweater
-    body={async ({ set }) => set({ model: new InputModel({ mode: "cancel" }) })}
+    body={async ({ set }) => {
+      set({ model: new InputModel({ mode: "cancel" }) });
+    }}
   >
     {#snippet vest({ model }: { model: InputModel })}
       <Input {model} />
@@ -64,7 +71,7 @@
   {@render responseModeSelector(
     new ResponseModeModel({
       options: ["send", "multichoice"] as const,
-    })
+    }),
   )}
 {/snippet}
 

@@ -81,3 +81,17 @@ export type ArrayKeys<T> = {
 }[keyof T];
 
 export type Parameter<T extends (arg: any) => any> = Parameters<T>[0];
+
+/**
+ * Splits a string based type into a tuple using a delimiter.
+ * @template S - The input string to be split.
+ * @template D - The delimiter string used for splitting.
+ * @returns A tuple of strings representing the segments.
+ */
+export type Split<S extends string, D extends string = " "> = string extends S // Check if S is a general string, if so return string[]
+  ? string[]
+  : S extends "" // Check if S is an empty string, if so return []
+  ? []
+  : S extends `${infer T}${D}${infer U}` // Check for the delimiter D
+  ? [T, ...Split<U, D>] // If found, add the part before D to the tuple and recurse on the rest (U)
+  : [S]; // If no delimiter found, return a tuple with the whole string
