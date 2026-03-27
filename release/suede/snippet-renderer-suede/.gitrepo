@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/pmalacho-mit/snippet-renderer-suede
 	branch = release
-	commit = 215b7191ab3066b90c6d885e7a710cfd0d0c642d
-	parent = 99e335f4258899536ad9507ab451341acaa04657
+	commit = af36e75f4f839221e835a998cd874f6da76fde5e
+	parent = 6dd1afb52c4ed0f67305edb24be238451298688d
 	method = merge
 	cmdver = 0.4.9

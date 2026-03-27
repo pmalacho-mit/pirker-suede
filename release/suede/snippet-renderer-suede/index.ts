@@ -3,7 +3,6 @@ export {
   renderable,
   renderer,
 } from "./SnippetRenderer.svelte";
-
 import type {
   Constraint,
   DefaultConstraint,
