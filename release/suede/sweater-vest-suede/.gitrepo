@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/pmalacho-mit/sweater-vest-suede.git
 	branch = release
-	commit = de0f3ca2bb00869d993f44673e0ee7f3bca18cc3
-	parent = 2ab2d705286cef77a81ddc43dd228af89cb5b1a2
+	commit = da640a43d4b71624012b6951ea9f023969e4cb83
+	parent = 5e63ade983a95d30883178a34e615589b3bb5814
 	method = merge
 	cmdver = 0.4.9
