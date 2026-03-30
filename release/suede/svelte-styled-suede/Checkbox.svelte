@@ -1,40 +1,32 @@
 <script lang="ts" module>
   export const base =
     /* tw: */ "appearance-none w-6 h-6 shrink-0 cursor-pointer align-middle rounded border border-gray-300 bg-white transition-colors checked:bg-gray-700 checked:border-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-800 disabled:cursor-not-allowed disabled:opacity-20";
-  export const decorations = {
+  export const variants = {
     primary:
       /* tw: */ "checked:bg-blue-600 checked:border-blue-600 focus-visible:outline-blue-600",
-    accent:
-      /* tw: */ "checked:bg-teal-500 checked:border-teal-500 focus-visible:outline-teal-500",
+
     xs: /* tw: */ "w-4 h-4",
     sm: /* tw: */ "w-5 h-5",
     lg: /* tw: */ "w-7 h-7",
   } as const;
 </script>
 
-<script lang="ts">
-  import { classify, type StyledProps } from ".";
+<script lang="ts" generics="Custom extends Variants.Constraint">
+  import { classify, type StyledProps, type Variants } from "./utils.js";
   let {
-    primary = false,
-    accent = false,
-    xs = false,
-    sm = false,
-    lg = false,
     checked = $bindable(),
+    custom,
     ...attributes
-  }: StyledProps<"input", typeof base, typeof decorations, false> = $props();
+  }: StyledProps<"input", typeof base, typeof variants, Custom, false> & {
+    custom?: Custom;
+  } = $props();
 </script>
 
 <input
   type="checkbox"
   bind:checked
   {...attributes}
-  class={classify(
-    base,
-    attributes,
-    decorations,
-    { primary, accent, xs, sm, lg },
-  )}
+  class={classify(base, attributes, variants, custom)}
 />
 
 <style>

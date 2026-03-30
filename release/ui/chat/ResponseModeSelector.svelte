@@ -18,6 +18,8 @@
 </script>
 
 <script lang="ts" generics="Options extends string">
+  import Radio from "../../suede/svelte-styled-suede/Radio.svelte";
+
   type Props = {
     model: Model<Options>;
   };
@@ -32,12 +34,12 @@
       <div
         class="flex flex-row rounded-xl mx-1 align-center items-center gap-1"
       >
-        <input
-          type="radio"
-          style:--input-color="var(--color-neutral-medium)"
-          class="radio radio-xs radio-accent"
-          checked={model.current === option}
-          onchange={() => (model.current = option)}
+        <Radio
+          customized={{}}
+          value={option}
+          bind:group={model.current}
+          xs
+          primary
         />
         <span class="text-sm text-neutral-medium">
           {option}

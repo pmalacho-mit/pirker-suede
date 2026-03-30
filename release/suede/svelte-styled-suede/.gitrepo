@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/pmalacho-mit/svelte-styled-suede
+	branch = release
+	commit = 08b74eaad508d70398d5c9fee45cba52bd5d3d64
+	parent = 122cc831c2b33c76efd62028a383907562a50a36
+	method = merge
+	cmdver = 0.4.9

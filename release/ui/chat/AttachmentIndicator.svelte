@@ -20,8 +20,12 @@
 </script>
 
 <script lang="ts">
+  import WithIndicator from "../../suede/svelte-styled-suede/WithIndicator.svelte";
   import { edit } from "./Icons.svelte";
   import { scale } from "svelte/transition";
+  import Checkbox from "../../suede/svelte-styled-suede/Checkbox.svelte";
+  import Badge from "../../suede/svelte-styled-suede/Badge.svelte";
+  import Button from "../../suede/svelte-styled-suede/Button.svelte";
 
   type Props = {
     model: Model;
@@ -30,36 +34,34 @@
   let { model }: Props = $props();
 </script>
 
-<div
-  class="indicator mx-1 will-change-transform origin-center z-2"
-  transition:scale
->
-  <span class="indicator-item badge h-4 border-none p-0">
-    <input
-      type="checkbox"
-      class="checkbox checkbox-xs text-white checked:bg-primary-medium"
+<WithIndicator>
+  {#snippet indicator()}
+    <Checkbox
+      xs
+      class="text-white checked:bg-blue-600 rounded-full"
       checked={model.checked}
       oninput={() => {
         model.checked = !model.checked;
         model.fire("checked", model.checked);
       }}
     />
-  </span>
-  <span
-    class:opacity-50={!model.checked}
-    class="content badge px-0 py-3 bg-primary-medium border-none text-white rounded-md shadow-md"
+  {/snippet}
+  {@const opacity = model.checked ? "" : /* tw: */ "opacity-50"}
+  <Badge
+    class="px-0 py-3 bg-blue-600 border-none text-white rounded-md shadow-md {opacity}"
   >
-    <button
-      class="btn btn-xs rounded-l-md text-white px-0 bg-inherit border-none hover:shadow-md hover:bg-primary-dark"
+    <Button
+      xs
       onclick={() => model.fire("edit")}
+      class="rounded-l-md text-white px-0 bg-inherit border-none hover:shadow-md hover:bg-blue-800"
     >
       {@render edit({ height: 16 })}
-    </button>
+    </Button>
     <div class="mr-1.5 -ml-1.5">
       {@render renderer(model.label)}
     </div>
-  </span>
-</div>
+  </Badge>
+</WithIndicator>
 
 {#snippet inlineIndicatorIcon(src: string, alt = "attachment indicator icon")}
   <img {src} {alt} class="w-4 h-4 mr-1" />

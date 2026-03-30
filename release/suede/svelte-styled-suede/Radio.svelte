@@ -1,37 +1,39 @@
 <script lang="ts" module>
   export const base =
     "styled-radio appearance-none w-6 h-6 shrink-0 cursor-pointer align-middle rounded-full border border-gray-300 bg-white transition-colors checked:bg-gray-700 checked:border-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-800 disabled:cursor-not-allowed disabled:opacity-20";
-  export const decorations = {
-    primary:
+
+  export const variants = {
+    /**
+     * Color the radio button with blue-600.
+     *
+     * Demonstrates how to create color variants.
+     */
+    blue600:
       /* tw: */ "checked:bg-blue-600 checked:border-blue-600 focus-visible:outline-blue-600",
-    accent:
-      /* tw: */ "checked:bg-teal-500 checked:border-teal-500 focus-visible:outline-teal-500",
     xs: /* tw: */ "w-4 h-4",
     sm: /* tw: */ "w-5 h-5",
     lg: /* tw: */ "w-7 h-7",
   } as const;
+</script>
 
-  type Props<Group, Value extends Group> = Omit<
-    StyledProps<"input", typeof base, typeof decorations, false>,
+<script
+  lang="ts"
+  generics="Group, Value extends Group, Custom extends Variants.Constraint"
+>
+  import { classify, type StyledProps, type Variants } from "./utils.js";
+  let {
+    value,
+    custom,
+    group = $bindable(),
+    ...attributes
+  }: Omit<
+    StyledProps<"input", typeof base, typeof variants, Custom, false>,
     "value" | "group"
   > & {
     group: Group;
     value: Value;
-  };
-</script>
-
-<script lang="ts" generics="Group, Value extends Group">
-  import { classify, type StyledProps } from ".";
-  let {
-    primary = false,
-    accent = false,
-    xs = false,
-    sm = false,
-    lg = false,
-    value,
-    group = $bindable(),
-    ...attributes
-  }: Props<Group, Value> = $props();
+    custom?: Custom;
+  } = $props();
 </script>
 
 <input
@@ -39,13 +41,7 @@
   {...attributes}
   {value}
   bind:group
-  class={classify(base, attributes, decorations, {
-    primary,
-    accent,
-    xs,
-    sm,
-    lg,
-  })}
+  class={classify(base, attributes, variants, custom)}
 />
 
 <style>

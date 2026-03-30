@@ -77,7 +77,8 @@
 </script>
 
 <script lang="ts">
-  import Button from "../styled/Button.svelte";
+  import Button from "../../suede/svelte-styled-suede/Button.svelte";
+  import WithIndicator from "../../suede/svelte-styled-suede/WithIndicator.svelte";
 
   type Props = {
     model: Model;
@@ -119,10 +120,10 @@
 
 <div>
   {@render renderer(model.above)}
-  <div class="w-full px-2 pt-2">
+  <div class="w-full px-2 pt-2 bg-green-200">
     <div class="flex flex-col">
-      <div class="join join-vertical bg-white rounded-t-lg rounded-b-lg">
-        <div class="w-full flex flex-row relative join-item">
+      <div class="bg-white rounded-t-lg rounded-b-lg">
+        <div class="w-full flex flex-row relative">
           <div class="flex-1 flex h-full relative border-none">
             {@render textArea(
               content,
@@ -140,9 +141,9 @@
             {/if}
           </div>
         </div>
-        <div class="w-full join-item indicator">
+        <div class="w-full">
           <span
-            class="indicator-item indicator-start text-xs badge border-none translate-x-2.5 -translate-y-2 pb-0"
+            class="text-xsborder-none translate-x-2.5 -translate-y-2 pb-0 pl-2"
             style:color="var(--neutral-medium)"
           >
             Attachments:
@@ -151,7 +152,7 @@
             class="mt-0 w-full px-2 py-2 flex flex-row flex-wrap justify-center"
           >
             {#each model.attachmentIndicators as [key, indicator] (key)}
-              <div class="mt-2 mb-0">
+              <div class="m-1 mt-2 mb-0">
                 <AttachmentIndicator model={indicator} />
               </div>
             {/each}
@@ -177,7 +178,7 @@
     {disabled}
     bind:value={state.value}
     use:textAreaUtility.resetOnContentClear={state}
-    class="textarea pr-12 pl-1 w-full overflow-y-hidden border-none resize-none rounded-lg text-neutral-dark"
+    class="pr-12 pl-2 pt-2 w-full overflow-y-hidden border-none resize-none rounded-lg text-neutral-dark"
     placeholder={provider.placeholder}
     oninput={textAreaUtility.growOnInput}
   >
@@ -199,7 +200,7 @@
 {/snippet}
 
 {#snippet sendButton(onclick: () => void, disabled: boolean)}
-  <Button class="h-full p-0 grow" primary {disabled} {onclick}>
+  <Button class="h-full p-0 grow" blue600 {disabled} {onclick}>
     <center class="m-auto mr-2">
       {@render paperAirplane()}
     </center>
